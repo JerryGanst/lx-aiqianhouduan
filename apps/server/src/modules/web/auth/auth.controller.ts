@@ -267,7 +267,10 @@ export class AuthController extends BaseController {
      */
     @Public()
     @Get("wechat-qrcode-bind-status/:scene_str")
-    async getWechatQrcodeBindStatus(@Param("scene_str") scene_str: string, @Query("id") id?: string) {
+    async getWechatQrcodeBindStatus(
+        @Param("scene_str") scene_str: string,
+        @Query("id") id?: string,
+    ) {
         return this.wechatOaService.getQrCodeBindStatus(scene_str, id);
     }
 

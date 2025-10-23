@@ -1,0 +1,79 @@
+{
+    "name": "FastbuildAI - User Registered",
+    "nodes": [
+        {
+            "parameters": {
+                "path": "fastbuildai/user-registered",
+                "options": {
+                    "responseMode": "lastNode",
+                    "responseCode": 200
+                }
+            },
+            "name": "User Registered Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                260,
+                300
+            ],
+            "webhookId": "fastbuildai-user-registered"
+        },
+        {
+            "parameters": {
+                "functionCode": "const user = $json.user ?? {};\nconst context = $json.context ?? {};\n\nreturn {\n  data: {\n    event: $json.event,\n    registeredAt: $json.timestamp,\n    userId: user.id,\n    username: user.username,\n    nickname: user.nickname,\n    source: user.source,\n    context,\n  },\n};"
+            },
+            "name": "Build Summary",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                520,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{$json[\"data\"]}}",
+                "options": {
+                    "responseCode": 200
+                }
+            },
+            "name": "Return Response",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                780,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "User Registered Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Build Summary",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build Summary": {
+            "main": [
+                [
+                    {
+                        "node": "Return Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {
+        "callerPolicy": "any"
+    },
+    "tags": []
+}

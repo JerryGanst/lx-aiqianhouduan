@@ -1,6 +1,7 @@
 import { User } from "@common/modules/auth/entities/user.entity";
 import { KeyManagerModule } from "@modules/console/key-manager/key-manager.module";
 import { forwardRef, Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { TypeOrmModule } from "@nestjs/typeorm";
 
@@ -26,6 +27,7 @@ import { FileParserService } from "./services/file-parser.service";
 import { IndexingService } from "./services/indexing.service";
 import { SegmentsService } from "./services/segments.service";
 import { VectorizationQueueService } from "./services/vectorization-queue.service";
+import { WeknoraIntegrationService } from "./services/weknora-integration.service";
 
 @Module({
     imports: [
@@ -41,6 +43,7 @@ import { VectorizationQueueService } from "./services/vectorization-queue.servic
         forwardRef(() => QueueModule),
         UploadModule,
         KeyManagerModule,
+        ConfigModule,
     ],
     controllers: [
         DatasetsController,
@@ -58,6 +61,7 @@ import { VectorizationQueueService } from "./services/vectorization-queue.servic
         IndexingService,
         VectorizationQueueService,
         DatasetPermissionGuard,
+        WeknoraIntegrationService,
         {
             provide: APP_GUARD,
             useClass: DatasetPermissionGuard,
@@ -72,6 +76,7 @@ import { VectorizationQueueService } from "./services/vectorization-queue.servic
         IndexingService,
         VectorizationQueueService,
         DatasetPermissionGuard,
+        WeknoraIntegrationService,
     ],
 })
 export class AiDatasetsModule {}

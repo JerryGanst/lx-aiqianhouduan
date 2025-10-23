@@ -19,6 +19,7 @@ import {
     SubSegmentationDto,
     TextPreprocessingRulesDto,
 } from "../dto/indexing-segments.dto";
+import { ExternalDatasetConfig } from "../interfaces/external-config.interface";
 import { RetrievalConfig } from "../interfaces/retrieval-config.interface";
 import { DatasetsDocument } from "./datasets-document.entity";
 import { DatasetMember } from "./datasets-member.entity";
@@ -82,6 +83,12 @@ export class Datasets {
      */
     @Column({ type: "json", comment: "检索配置" })
     retrievalConfig: RetrievalConfig;
+
+    /**
+     * 外部知识库配置（例如 WeKnora）
+     */
+    @Column({ type: "json", nullable: true, comment: "外部知识库配置" })
+    externalConfig?: ExternalDatasetConfig;
 
     /**
      * 创建者ID

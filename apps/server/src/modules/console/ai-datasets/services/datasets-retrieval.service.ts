@@ -20,6 +20,7 @@ import {
 } from "../constants/datasets.constants";
 import { Datasets } from "../entities/datasets.entity";
 import { DatasetsSegments } from "../entities/datasets-segments.entity";
+import { ExternalDatasetConfig } from "../interfaces/external-config.interface";
 import {
     DbQueryResult,
     FullTextSearchResult,
@@ -31,6 +32,7 @@ import {
     VectorSearchResult,
     WeightConfig,
 } from "../interfaces/retrieval-config.interface";
+import { WeknoraIntegrationService } from "./weknora-integration.service";
 
 const RAG_SERVICE_CONSTANTS = {
     DEFAULT_TOP_K: 3,
@@ -57,6 +59,7 @@ export class DatasetsRetrievalService {
         private readonly segmentsRepository: Repository<DatasetsSegments>,
         private readonly aiModelService: AiModelService,
         private readonly keyConfigService: KeyConfigService,
+        private readonly weknoraIntegrationService: WeknoraIntegrationService,
     ) {}
 
     /**
@@ -136,6 +139,20 @@ export class DatasetsRetrievalService {
         const mode = customConfig?.retrievalMode || dataset.retrievalMode;
         const topK = config!.topK || RAG_SERVICE_CONSTANTS.DEFAULT_TOP_K;
 
+        if (
+            dataset.externalConfig?.provider === "weknora" &&
+            this.weknoraIntegrationService.isConfigured()
+        ) {
+            const chunks = await this.performWeKnoraSearch(dataset, query, {
+                ...config!,
+                topK,
+            });
+            return {
+                chunks,
+                totalTime: Date.now() - startTime,
+            };
+        }
+
         this.logger.debug(`[检索服务] 检索模式: ${mode}`);
         this.logger.debug(`[检索服务] 最终配置: ${JSON.stringify({ ...config, topK })}`);
 
@@ -172,6 +189,60 @@ export class DatasetsRetrievalService {
             this.logger.error(`检索失败 [模式: ${mode}]: ${error.message}`, error.stack);
             throw error;
         }
+    }
+
+    /**
+     * Performs retrieval through WeKnora integration when configured.
+     */
+    private async performWeKnoraSearch(
+        dataset: Datasets,
+        query: string,
+        config: RetrievalConfig,
+    ): Promise<RetrievalChunk[]> {
+        const externalConfig = dataset.externalConfig as ExternalDatasetConfig | undefined;
+        if (!externalConfig?.knowledgeBaseId) {
+            this.logger.warn(
+                `[WeKnora] Dataset ${dataset.id} configured for WeKnora but missing knowledgeBaseId`,
+            );
+            return [];
+        }
+
+        const results = await this.weknoraIntegrationService.hybridSearch(
+            externalConfig.knowledgeBaseId,
+            query,
+            config,
+        );
+
+        if (!results.length) {
+            return [];
+        }
+
+        return results
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+            .slice(0, config.topK ?? RAG_SERVICE_CONSTANTS.DEFAULT_TOP_K)
+            .map((item) => ({
+                id: item.id ?? item.knowledge_id,
+                documentId: item.knowledge_id,
+                content: item.content,
+                score: item.score ?? 0,
+                provider: "weknora",
+                metadata: {
+                    provider: "weknora",
+                    knowledgeBaseId: externalConfig.knowledgeBaseId,
+                    knowledgeId: item.knowledge_id,
+                    matchType: item.match_type,
+                    knowledgeTitle: item.knowledge_title,
+                    knowledgeFilename: item.knowledge_filename,
+                    chunkType: item.chunk_type,
+                    parentChunkId: item.parent_chunk_id,
+                    knowledgeSource: item.knowledge_source,
+                    subChunkIds: item.sub_chunk_id,
+                    imageInfo: item.image_info,
+                },
+                chunkIndex: item.chunk_index,
+                contentLength: item.content?.length ?? 0,
+                fileName: item.knowledge_filename || item.knowledge_title,
+            }));
     }
 
     /**

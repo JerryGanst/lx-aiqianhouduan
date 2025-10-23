@@ -1,0 +1,173 @@
+{
+    "name": "FastbuildAI - Leave Link Dispatcher",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "hook/leave-link",
+                "options": {
+                    "responseMode": "lastNode",
+                    "responseCode": 200,
+                    "responseHeaders": [
+                        {
+                            "name": "content-type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "cache-control",
+                            "value": "no-store"
+                        }
+                    ]
+                }
+            },
+            "name": "Leave Link Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                260,
+                300
+            ],
+            "webhookId": "fastbuildai-leave-link"
+        },
+        {
+            "parameters": {
+                "functionCode": "const crypto = require('crypto');\n\nfunction base64UrlDecode(input) {\n  input = input.replace(/-/g, '+').replace(/_/g, '/');\n  while (input.length % 4) {\n    input += '=';\n  }\n  return Buffer.from(input, 'base64');\n}\n\nfunction base64UrlEncode(buffer) {\n  return buffer.toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');\n}\n\nfunction verifyHs256(token, secret) {\n  const parts = token.split('.');\n  if (parts.length !== 3) {\n    return { valid: false, error: 'invalid token format' };\n  }\n  const [encodedHeader, encodedPayload, signature] = parts;\n  let header;\n  let payload;\n  try {\n    header = JSON.parse(base64UrlDecode(encodedHeader).toString('utf8'));\n    payload = JSON.parse(base64UrlDecode(encodedPayload).toString('utf8'));\n  } catch (err) {\n    return { valid: false, error: 'invalid token payload' };\n  }\n  if (header.alg !== 'HS256') {\n    return { valid: false, error: 'unsupported algorithm' };\n  }\n  const hmac = crypto.createHmac('sha256', secret);\n  hmac.update(`${encodedHeader}.${encodedPayload}`);\n  const expected = base64UrlEncode(hmac.digest());\n  let providedBuffer;\n  let expectedBuffer;\n  try {\n    providedBuffer = base64UrlDecode(signature);\n    expectedBuffer = base64UrlDecode(expected);\n  } catch (err) {\n    return { valid: false, error: 'invalid token signature' };\n  }\n  if (providedBuffer.length !== expectedBuffer.length) {\n    return { valid: false, error: 'invalid token signature' };\n  }\n  if (!crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {\n    return { valid: false, error: 'invalid token signature' };\n  }\n  return { valid: true, header, payload };\n}\n\nfunction buildError(responseCode, message) {\n  return [{\n    json: {\n      branch: 'error',\n      responseCode,\n      response: { error: message },\n    },\n  }];\n}\n\nfunction signLink(url, userId, secret, ttlSec = 300) {\n  const exp = Math.floor(Date.now() / 1000) + ttlSec;\n  const payload = `${userId}.${exp}.${url}`;\n  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64');\n  const signature = sig.replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');\n  const link = new URL(url);\n  link.searchParams.set('uid', userId);\n  link.searchParams.set('exp', exp);\n  link.searchParams.set('sig', signature);\n  return { url: link.toString(), expiresAt: exp };\n}\n\nconst request = items[0].json ?? {};\nconst body = (request.body && typeof request.body === 'object') ? request.body : request;\nconst headers = (request.headers && typeof request.headers === 'object') ? request.headers : {};\nconst normalizedHeaders = Object.fromEntries(Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value]));\n\nconst ipWhitelist = ($env.N8N_LEAVE_IP_WHITELIST || '')\n  .split(',')\n  .map((value) => value.trim())\n  .filter(Boolean);\n\nconst sourceIp = (normalizedHeaders['x-forwarded-for'] || '').split(',')[0].trim();\nif (ipWhitelist.length > 0 && (!sourceIp || !ipWhitelist.includes(sourceIp))) {\n  return buildError(403, 'ip_not_allowed');\n}\n\nconst authHeader = normalizedHeaders.authorization;\nif (!authHeader) {\n  return buildError(401, 'missing_authorization');\n}\n\nconst tokenMatch = authHeader.match(/^bearer\\s+(.+)$/i);\nif (!tokenMatch) {\n  return buildError(401, 'invalid_authorization_format');\n}\n\nconst token = tokenMatch[1].trim();\nconst jwtSecret = $env.N8N_LEAVE_JWT_SECRET;\nif (!jwtSecret) {\n  throw new Error('N8N_LEAVE_JWT_SECRET not configured');\n}\n\nconst verification = verifyHs256(token, jwtSecret);\nif (!verification.valid) {\n  return buildError(401, verification.error || 'invalid_token');\n}\n\nconst jwtPayload = verification.payload;\nconst now = Math.floor(Date.now() / 1000);\nif (jwtPayload.exp && jwtPayload.exp < now) {\n  return buildError(401, 'token_expired');\n}\n\nconst allowedIssuers = ($env.N8N_LEAVE_JWT_ISS || '')\n  .split(',')\n  .map((value) => value.trim())\n  .filter(Boolean);\nif (allowedIssuers.length > 0 && jwtPayload.iss && !allowedIssuers.includes(jwtPayload.iss)) {\n  return buildError(401, 'unauthorized_issuer');\n}\n\nconst allowedAudiences = ($env.N8N_LEAVE_JWT_AUD || '')\n  .split(',')\n  .map((value) => value.trim())\n  .filter(Boolean);\nif (allowedAudiences.length > 0 && jwtPayload.aud && !allowedAudiences.includes(jwtPayload.aud)) {\n  return buildError(401, 'unauthorized_audience');\n}\n\nconst { userId, org, intent, type, locale, ts } = body;\nif (!userId || !intent) {\n  return buildError(400, 'missing_userId_or_intent');\n}\n\nconst normalizedIntent = String(intent).toLowerCase();\nconst normalizedType = type ? String(type).toLowerCase() : '';\nconst branchKey = normalizedType ? `${normalizedIntent}_${normalizedType}` : normalizedIntent;\n\nconst BASE = {\n  leave_annual: 'https://hr.example.com/leave/annual',\n  leave_sick: 'https://hr.example.com/leave/sick',\n  leave_marriage: 'https://hr.example.com/leave/marriage',\n  leave_bereavement: 'https://hr.example.com/leave/bereavement',\n  business_trip: 'https://hr.example.com/travel/start',\n};\n\nconst ORG_BASE = {\n  'SZ-OPS': {\n    leave_annual: 'https://hr.sz.example.com/leave/annual',\n  },\n};\n\nconst TITLES = {\n  leave_annual: '\u7533\u8bf7\u5e74\u5047',\n  leave_sick: '\u7533\u8bf7\u75c5\u5047',\n  leave_marriage: '\u7533\u8bf7\u5a5a\u5047',\n  leave_bereavement: '\u7533\u8bf7\u4e27\u5047',\n  business_trip: '\u53bb\u51fa\u5dee\u529e\u4e8b',\n};\n\nconst baseByOrg = ORG_BASE[org] ? { ...BASE, ...ORG_BASE[org] } : BASE;\n\nlet url = baseByOrg[branchKey] || baseByOrg[normalizedIntent];\nif (!url) {\n  return buildError(422, 'unsupported_intent');\n}\n\nconst traceId = crypto.randomBytes(6).toString('hex');\n\nconst link = new URL(url);\nlink.searchParams.set('src', 'fastbuild-ai');\nlink.searchParams.set('trace', traceId);\nif (locale) {\n  link.searchParams.set('locale', locale);\n}\nif (ts) {\n  link.searchParams.set('ts', String(ts));\n}\n\nlink.searchParams.set('utm_source', 'fastbuild-ai');\nlink.searchParams.set('utm_medium', 'assistant');\nlink.searchParams.set('utm_campaign', normalizedIntent);\n\nconst linkSecret = $env.N8N_LINK_SIGN_SECRET || $env.N8N_LEAVE_LINK_SIGN_SECRET;\nif (!linkSecret) {\n  throw new Error('N8N_LINK_SIGN_SECRET not configured');\n}\n\nconst ttlSec = Number($env.N8N_LEAVE_LINK_TTL || '300');\nconst signed = signLink(link.toString(), userId, linkSecret, ttlSec);\n\nreturn [{\n  json: {\n    branch: branchKey,\n    responseCode: 200,\n    response: {\n      title: TITLES[branchKey] || TITLES[normalizedIntent] || '\u53bb\u529e\u7406',\n      url: signed.url,\n      traceId,\n      expiresAt: signed.expiresAt,\n    },\n  },\n}];"
+            },
+            "name": "Prepare Leave Link",
+            "type": "n8n-nodes-base.function",
+            "typeVersion": 1,
+            "position": [
+                520,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "value1": "={{$json[\"branch\"]}}",
+                "rules": [
+                    {
+                        "operation": "equal",
+                        "value2": "leave_annual"
+                    },
+                    {
+                        "operation": "equal",
+                        "value2": "leave_sick"
+                    },
+                    {
+                        "operation": "equal",
+                        "value2": "leave_marriage"
+                    },
+                    {
+                        "operation": "equal",
+                        "value2": "leave_bereavement"
+                    },
+                    {
+                        "operation": "equal",
+                        "value2": "business_trip"
+                    }
+                ],
+                "options": {
+                    "fallbackOutput": true
+                }
+            },
+            "name": "Route Intent",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 1,
+            "position": [
+                780,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{$json[\"response\"]}}",
+                "options": {
+                    "responseCode": "={{$json[\"responseCode\"] || 200}}"
+                }
+            },
+            "name": "Respond to Leave Link",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1040,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Leave Link Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Prepare Leave Link",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepare Leave Link": {
+            "main": [
+                [
+                    {
+                        "node": "Route Intent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Route Intent": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Leave Link",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Respond to Leave Link",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Respond to Leave Link",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Respond to Leave Link",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Respond to Leave Link",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Respond to Leave Link",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {
+        "callerPolicy": "any"
+    },
+    "tags": []
+}

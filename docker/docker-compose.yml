@@ -87,6 +87,13 @@ services:
             REDIS_HOST: redis
             REDIS_PORT: 6379
             REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+            N8N_ENABLED: ${N8N_ENABLED:-false}
+            N8N_BASE_URL: ${N8N_BASE_URL:-http://n8n:5678}
+            N8N_WEBHOOK_BASE_URL: ${N8N_WEBHOOK_BASE_URL:-}
+            N8N_WEBHOOK_AUTH_HEADER: ${N8N_WEBHOOK_AUTH_HEADER:-}
+            N8N_WEBHOOK_AUTH_TOKEN: ${N8N_WEBHOOK_AUTH_TOKEN:-}
+            N8N_TIMEOUT: ${N8N_TIMEOUT:-10000}
+            N8N_WORKFLOW_USER_REGISTER_PATH: ${N8N_WORKFLOW_USER_REGISTER_PATH:-}
         command: |
             sh -c '
             set -e
@@ -176,6 +183,38 @@ services:
             timeout: 10s
             retries: 10
             start_period: 180s
+
+    # n8n 工作流引擎
+    n8n:
+        image: n8nio/n8n:1.82.1
+        container_name: fastbuildai-n8n${DOCKER_CONTAINER_SUFFIX:-}
+        restart: unless-stopped
+        environment:
+            TZ: Asia/Shanghai
+            GENERIC_TIMEZONE: ${N8N_TIMEZONE:-Asia/Shanghai}
+            N8N_HOST: ${N8N_HOST:-n8n}
+            N8N_PORT: 5678
+            N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+            WEBHOOK_URL: ${N8N_WEBHOOK_URL:-}
+            N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
+            N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
+            N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+            N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-fastbuildai}
+            N8N_DIAGNOSTICS_ENABLED: ${N8N_DIAGNOSTICS_ENABLED:-false}
+            N8N_PERSONALIZATION_ENABLED: ${N8N_PERSONALIZATION_ENABLED:-false}
+            N8N_LOG_LEVEL: ${N8N_LOG_LEVEL:-info}
+        ports:
+            - "${N8N_EXTERNAL_PORT:-}${N8N_EXTERNAL_PORT:+:}5678"
+        volumes:
+            - ./data/n8n:/home/node/.n8n
+        networks:
+            - fastbuildai-network
+        <<: *resource-config
+        depends_on:
+            redis:
+                condition: service_healthy
+            postgres:
+                condition: service_healthy
 
 networks:
     fastbuildai-network:

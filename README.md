@@ -51,6 +51,28 @@ http://localhost:4090
 - **Username:** `admin`  
 - **Password:** `FastbuildAI&123456`  
 
+## N8N Workflow Integration
+
+1. Enable the workflow bridge in `.env.production.local`:
+
+    ```env
+    N8N_ENABLED=true
+    N8N_WORKFLOW_USER_REGISTER_PATH=fastbuildai/user-registered
+    # Optional security if your webhook requires it:
+    # N8N_WEBHOOK_AUTH_HEADER=Authorization
+    # N8N_WEBHOOK_AUTH_TOKEN=Bearer <token>
+    ```
+
+2. Boot the N8N service together with the stack:
+
+    ```bash
+    docker compose -p fastbuildai --env-file ./.env.production.local -f ./docker/docker-compose.yml up -d n8n
+    ```
+
+3. Visit `http://localhost:5678` (defaults: `admin` / `fastbuildai`) and import the sample workflow at `workflows/n8n/user-registered.workflow.json`.
+
+4. Activate the workflow (optional) and register a new FastbuildAI user to emit the `user.registered` event into N8N. The workflow echoes the payload, ready for you to extend with downstream automations.
+
 ## Features
 
 - ✅ **AI Chat** – Multi-model AI conversation.

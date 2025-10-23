@@ -8,7 +8,7 @@
     <path
         opacity="0.4"
         d="M1.03027 44.7286L31.5938 22.8986H31.6523L21.7588 44.7921H1.00098L1.03027 44.7286Z"
-        fill="#510afc"
+        fill="var(--color-primary, #510afc)"
     />
     <path
         opacity="0.6"

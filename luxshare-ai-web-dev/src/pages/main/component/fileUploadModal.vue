@@ -1,0 +1,1271 @@
+<template>
+  <el-dialog
+    v-model="dialogVisible"
+    title="附件上传"
+    width="1200px"
+    class="custom-upload-dialog"
+    style="margin-top: 3vh; border-radius: 10px"
+  >
+    <div class="upload-layout no-drag">
+      <!-- 左侧附件列表 -->
+      <div class="file-list" ref="leftPanel">
+        <div class="upload_list">
+          <el-upload
+            drag
+            :auto-upload="false"
+            :multiple="type === 'sample' ? true : false"
+            :accept="allowedFileTypes"
+            :on-change="handleFileAdd"
+            :show-file-list="false"
+            :file-list="fileQueue"
+            :before-upload="checkFileSize"
+            :limit="maxFileNumber"
+          >
+            <i class="el-icon-upload" />
+            <div class="el-upload__text">
+              拖拽附件到此或
+              <em>点击上传</em>
+              <div class="el-upload__subtext">
+                <span style="color: #868686">支持格式：{{ allowedFileTypes }}</span>
+              </div>
+              <div class="el-upload__subtext" v-if="type === 'sample'">
+                <span v-if="currentAgentType === COMPARE_AGENT_TYPE" style="color: #868686">请先上传标准图再上传对比图,单个大小不超过{{fileMaxSize}}M</span>
+                <span v-else style="color: #868686">一次性最多上传{{maxFileNumber}}个附件,单个大小不超过{{fileMaxSize}}M</span>
+              </div>
+              <div class="el-upload__subtext" v-else>
+                <span style="color: #868686">大小不超过{{fileMaxSize}}M</span>
+              </div>
+            </div>
+          </el-upload>
+        </div>
+
+        <div
+          class="file_item"
+          :style="{ marginTop: type === 'sample' ? '115px' : '115px' }"
+          @dragover.stop
+          @dragenter.stop
+          @dragleave.stop
+          @drop.stop
+        >
+          <div v-for="(file, index) in fileQueue" :key="file.uid" class="file-item" @click="handlePreview(file)">
+            <div class="file_img">
+              <img
+                :src="getFileImg(file)"
+              />
+            </div>
+            <div class="file-info">
+              <span class="filename">{{ file.name }}</span>
+              <div class="file-actions">
+                <span
+                  @click.stop="handleDelete(file.uid)"
+                  style="width: 20px; height: 20px; cursor: pointer"
+                  :style="{ marginRight: file.status === 'pending' ? '0px' : '10px' }"
+                >
+                  <img src="@/assets/deleteFile.svg" style="width: 100%; height: 100%" />
+                </span>
+                <span
+                  v-if="file.status === 'uploading'"
+                  @click.stop="pauseUpload(file)"
+                  style="width: 20px; height: 20px; cursor: pointer"
+                >
+                  <img src="@/assets/continue.svg" style="width: 100%; height: 100%" />
+                </span>
+                <!-- <span
+                v-if="file.status === 'padding'"
+                @click.stop="pauseUpload(file)"
+                style="width: 20px; height: 20px; cursor: pointer"
+              >
+                <img src="@/assets/continue.svg" style="width: 100%; height: 100%" />
+              </span> -->
+                <span
+                  v-else-if="file.status === 'paused'"
+                  @click.stop="resumeUpload(file)"
+                  style="width: 20px; height: 20px; cursor: pointer"
+                >
+                  <img src="@/assets/pause.svg" style="width: 100%; height: 100%" />
+                </span>
+                <span
+                  v-else-if="file.status === 'error'"
+                  @click.stop="retryUpload(file)"
+                  style="width: 20px; height: 20px; cursor: pointer"
+                >
+                  <img src="@/assets/refreshFile.svg" style="width: 100%; height: 100%" />
+                </span>
+                <span v-else-if="file.status === 'success'" style="width: 20px; height: 20px">
+                  <img src="@/assets/doneFile.svg" style="width: 100%; height: 100%" />
+                </span>
+              </div>
+              <!-- <span class="file-type">{{ file.extension }}</span> -->
+            </div>
+            <div style="font-size: 12px; color: #bebebe; margin-top: 2px; margin-bottom: 4px">
+              {{ file.size ? (file.size / 1024).toFixed(1) : 0 }}KB
+            </div>
+            <!-- 进度条有bug 先隐藏-->
+<!--            <el-progress-->
+<!--              :percentage="file.progress"-->
+<!--              :color="customProgressColor(file)"-->
+<!--              :status="getStatusType(file.status)"-->
+<!--            />-->
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧上传区域 -->
+      <div
+        class="upload-area"
+        ref="rightPanel"
+        :style="{
+          'margin-left': `-${overlayWidth}px`,
+          width: `calc(100% - 500px + ${overlayWidth}px)`
+        }"
+      >
+        <div class="drag-bar" @mousedown="startDrag"></div>
+        <!-- 附件预览 -->
+        <div v-if="previewFileId" class="preview-container" :key="previewFileId">
+          <div v-if="previewType === 'text'" class="text-preview" style="width: 100%">
+            <pre>{{ previewContent }}</pre>
+          </div>
+          <div
+            v-else-if="previewType === 'html'"
+            class="html-preview"
+            v-html="previewContent"
+            style="width: 100%"
+          ></div>
+          <div v-else-if="previewType === 'pdf'" style="width: 100%">
+            <iframe :src="previewContent" frameborder="0" class="pdf-frame"></iframe>
+          </div>
+          <div v-else-if="previewType === 'pptx'" style="width: 100%">
+            <vue-office-pptx :src="previewContent" />
+          </div>
+          <div v-else-if="previewType === 'excel'" style="width: 1192px;height: 100%">
+            <vue-office-excel
+              :src="previewContent"
+              :options="{beforeTransformData, xls: isXls}"
+            />
+          </div>
+          <div v-else-if="previewType === 'img'" style="width: 100%">
+            <img :src="previewContent" style="width: 100%; height: 100%" />
+          </div>
+          <div v-else class="unsupported-preview">暂不支持此格式预览</div>
+        </div>
+        <div v-else="previewFileId" class="preview-container">
+          <div style="width: 100%; display: flex; justify-content: center; margin-top: 154px">
+            <img src="@/assets/no-file.png" style="width: 150px; height: 150px" />
+          </div>
+          <div class="unsupported-preview" style="padding: 0px">请先上传附件即可预览</div>
+        </div>
+      </div>
+    </div>
+    <div class="upload_btn">
+      <el-button @click="dialogVisible = false" style="width: 100px; height: 40px; margin-left: 15px">取消</el-button>
+      <el-button
+        type="primary"
+        @click="startUpload(type === 'sample' ? fileQueue : fileQueue[0])"
+        style="width: 100px; height: 40px"
+        :disabled="!hasPendingFiles || !isLogin"
+      >
+        提交
+      </el-button>
+    </div>
+  </el-dialog>
+</template>
+
+<script setup>
+import { ref, computed, nextTick, watch, reactive } from 'vue'
+import axios from 'axios'
+import VueOfficePptx from '@vue-office/pptx'
+import VueOfficeExcel from '@vue-office/excel'
+
+import mammoth from 'mammoth'
+import { useShared } from '@/utils/useShared'
+import { ContentType, getFileImg } from '@/utils/common'
+import eventBus from '@/utils/eventBus'
+import excel from '@/assets/excl.png'
+import { ElMessage } from 'element-plus' // 引入 ElMessage
+import request from '@/utils/request' // 导入封装的 axios 方法
+import { beforeTransformData } from '@/utils/common.js'
+import { COMPARE_AGENT_TYPE } from '@/utils/constants.js'
+const dialogVisible = ref(false)
+const fileQueue = ref([])
+const previewContent = ref(null)
+const previewType = ref('')
+const previewFileId = ref(null)
+// 是否为单文件上传，tran为单文件
+const type = ref('tran')
+const isXls = ref(false)
+const emit = defineEmits(['submit-tran', 'submit-final'])
+const {
+  fileObj,
+  isSampleLoad,
+  finalIng,
+  isLogin,
+  fileAry,
+  limitFile,
+  limitFinalFile,
+  currentId,
+  currentAgentType,
+  selectType,
+  isNet,
+  jobJdFile,
+  updateJobJdFile,
+  useTranslationDocument
+} = useShared()
+// 常量定义
+const STATUS = {
+  PENDING: 'pending',
+  UPLOADING: 'uploading',
+  PAUSED: 'paused',
+  SUCCESS: 'success',
+  ERROR: 'error'
+}
+
+const MULTIPART_CONCURRENCY = 4
+const MULTIPART_RETRY = 3
+const RETRY_BASE_DELAY = 500
+
+const isCompareAgent = ref(false)
+const selectedKnow = ref(1)
+const selectedMode = ref('')
+const selectedFile = ref([])
+const fileOptions = ref([])
+const overlayWidth = ref(0) // 右侧覆盖左侧的宽度
+const isDragging = ref(false)
+const startX = ref(0)
+const startOverlay = ref(0)
+const knowList = ref([
+  {
+    value: 1,
+    label: '个人知识库'
+  }
+  // {
+  //   value: 2,
+  //   label: '通用知识库'
+  // }
+])
+
+const knowOptions = ref([])
+let allowedFileTypes
+let maxFileNumber
+let fileMaxSize
+
+const updateUploadConfig = () => {
+  isCompareAgent.value =
+    currentAgentType.value === COMPARE_AGENT_TYPE && selectType.value === ContentType.AGENT
+
+  if (type.value === 'sample') {
+    if (isCompareAgent.value) {
+      allowedFileTypes = '.jpg,.jpeg,.png,.gif'
+      maxFileNumber = 2
+      fileMaxSize = 10
+    } else {
+      allowedFileTypes = '.doc,.docx,.txt,.pdf,.pptx,.ppt,.xls,.xlsx'
+      maxFileNumber = 5
+      fileMaxSize = 50
+    }
+  } else if (type.value === 'jobJd') {
+    allowedFileTypes = '.txt,.doc,.docx'
+    maxFileNumber = 1
+    fileMaxSize = 20
+  } else {
+    if (type.value === 'tran' && useTranslationDocument.value) {
+      allowedFileTypes = '.xlsx'
+    } else {
+      allowedFileTypes = '.doc,.docx,.txt,.pdf,.pptx,.ppt,.xls,.xlsx'
+    }
+    maxFileNumber = 1
+    fileMaxSize = 50
+  }
+}
+updateUploadConfig()
+// 颜色映射
+const statusColors = {
+  [STATUS.PENDING]: '#EDEDED',
+  [STATUS.UPLOADING]: '#409EFF',
+  [STATUS.PAUSED]: '#FAAD14',
+  [STATUS.SUCCESS]: '#52C41A',
+  [STATUS.ERROR]: '#FF4D4F'
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+const extractETag = headers => {
+  if (!headers) return null
+  return headers.get('ETag') || headers.get('etag') || headers.get('Etag')
+}
+
+const multipartUploadFile = async file => {
+  const rawFile = file?.raw
+  if (!rawFile) {
+    throw new Error('未找到原始文件数据')
+  }
+
+  const controller = new AbortController()
+  const cancel = () => controller.abort()
+  file.source = { cancel }
+  file.cancel = cancel
+
+  const contentType = rawFile.type || 'application/octet-stream'
+
+  const preparePayload = {
+    filename: file.name,
+    contentType,
+    size: rawFile.size,
+    local: true
+  }
+
+  const prepareRes = await request.post('/AI/upload/multipart/prepare', preparePayload)
+  if (!prepareRes?.status) {
+    throw new Error(prepareRes?.message || '获取上传会话失败')
+  }
+
+  const { uploadId, objectKey, partSize, parts } = prepareRes.data || {}
+  if (!uploadId || !objectKey || !Array.isArray(parts) || parts.length === 0) {
+    throw new Error('上传会话信息不完整')
+  }
+
+  const totalBytes = rawFile.size
+  let uploadedBytes = 0
+  const partResults = new Array(parts.length)
+  let currentIndex = 0
+
+  const runPartUpload = async index => {
+    const partInfo = parts[index]
+    const partNumber = partInfo.partNumber
+    const start = (partNumber - 1) * partSize
+    const end = Math.min(start + partSize, totalBytes)
+    const chunk = rawFile.slice(start, end)
+
+    for (let attempt = 1; attempt <= MULTIPART_RETRY; attempt++) {
+      try {
+        const response = await fetch(partInfo.url, {
+          method: 'PUT',
+          body: chunk,
+          headers: {
+            'Content-Type': contentType
+          },
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          throw new Error(`分片 ${partNumber} 上传失败，状态码 ${response.status}`)
+        }
+
+        const etag = extractETag(response.headers)
+        if (!etag) {
+          throw new Error(`分片 ${partNumber} 上传成功但未获取到ETag`)
+        }
+
+        partResults[index] = {
+          partNumber,
+          etag
+        }
+
+        uploadedBytes += chunk.size
+        const progress = Math.min(99, Math.round((uploadedBytes / totalBytes) * 100))
+        file.progress = progress
+        return
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          throw error
+        }
+
+        if (attempt === MULTIPART_RETRY) {
+          if (
+            !isNet.value ||
+            error?.message?.includes('Failed to fetch') ||
+            error?.name === 'TypeError'
+          ) {
+            throw new Error('仅支持通过office网络直连访问')
+          }
+          throw error
+        }
+
+        const backoff = RETRY_BASE_DELAY * 2 ** (attempt - 1)
+        await sleep(backoff)
+      }
+    }
+  }
+
+  const runWorker = async () => {
+    while (true) {
+      const index = currentIndex++
+      if (index >= parts.length) break
+      await runPartUpload(index)
+    }
+  }
+
+  const workerCount = Math.min(MULTIPART_CONCURRENCY, parts.length)
+
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()))
+
+  const sortedParts = partResults.slice().sort((a, b) => a.partNumber - b.partNumber)
+
+  const completePayload = {
+    uploadId,
+    objectKey,
+    parts: sortedParts,
+    originalFilename: file.name,
+    contentType,
+    size: totalBytes,
+    local: true
+  }
+
+  const completeRes = await request.post('/AI/upload/multipart/complete', completePayload)
+  if (!completeRes?.status) {
+    throw new Error(completeRes?.message || '合并分片失败')
+  }
+
+  file.source = null
+  file.cancel = null
+
+  return completeRes.data
+}
+const startDrag = e => {
+  isDragging.value = true
+  startX.value = e.clientX
+  startOverlay.value = overlayWidth.value
+
+  document.addEventListener('mousemove', handleDrag)
+  document.addEventListener('mouseup', stopDrag)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+const handleDrag = e => {
+  if (!isDragging.value) return
+
+  const dx = startX.value - e.clientX // 向左拖动为负值
+  let newOverlay = startOverlay.value + dx
+
+  // 限制覆盖范围 (0到735px)
+  newOverlay = Math.max(0, Math.min(newOverlay, 500))
+
+  overlayWidth.value = newOverlay
+}
+
+const stopDrag = () => {
+  isDragging.value = false
+  document.removeEventListener('mousemove', handleDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+// 因只有两张图片 所以删除图片时 可以做预览换成另外一个
+const handlePicturePreview = () => {
+  if (fileQueue.length !== 0) {
+    let anotherFile = fileQueue.value[0]
+    previewFileId.value = anotherFile.uid // 必须同步清除关联标识
+    previewContent.value = URL.createObjectURL(anotherFile.raw)
+    previewType.value = 'img'
+  }
+}
+
+// 新增删除处理函数
+const handleDelete = uid => {
+  const deletedFile = fileQueue.value.find(file => file.uid === uid)
+  if (!deletedFile) {
+    return
+  }
+  if (isCompareAgent.value) {
+      handlePicturePreview(deletedFile.uid)
+  }
+  
+  // 强制 DOM 更新（关键修复）
+  nextTick(() => {
+    // 通过重新赋值触发响应式更新
+    fileQueue.value = [...fileQueue.value]
+    fileQueue.value.forEach(item => {
+      item.status = 'pending'
+    })
+  })
+
+  // 取消上传（原有逻辑）
+  if (deletedFile.status === 'uploading' && deletedFile.source) {
+    deletedFile.source.cancel('用户删除附件')
+  }
+
+  // 从队列中移除
+
+  if (type.value === 'sample') {
+    // 提取array2的name集合
+    // 过滤array1，排除name存在于array2中的对象
+    if (fileAry.value && fileAry.value.length > 0) {
+      fileAry.value = fileAry.value.filter(item => item.originalFileName !== deletedFile.name)
+    }
+
+    const index = fileQueue.value.findIndex(file => file.uid === uid);
+    fileQueue.value.splice(index, 1)
+
+    nextTick(() => {
+      // 通过重新赋值触发响应式更新
+      handlePreview(fileQueue.value[0])
+    })
+  } else {
+    if (fileQueue.value.length >= 1) {
+      fileQueue.value = fileQueue.value.slice(0, -1)
+    }
+    if (type.value === 'jobJd') {
+      updateJobJdFile(null)
+    }
+  }
+}
+// 计算属性
+const hasPendingFiles = computed(() => {
+  return fileQueue.value.some(file => [STATUS.PENDING, STATUS.ERROR].includes(file.status))
+})
+const buildSampleEmitPayload = file => {
+  if (!file || !file.uploadResult) return null
+  return file.uploadResult
+}
+
+const startUpload = async file => {
+  if (currentAgentType.value === COMPARE_AGENT_TYPE && selectType === ContentType.AGENT) {
+    if (fileQueue.value.length !== 2) {
+      ElMessage.warning('请分别上传标准图和对比图比较！')
+      return
+    }
+  }
+  if (fileQueue.value.length === 0) {
+    ElMessage.warning('请先上传附件再提交')
+    return
+  }
+  if (isSampleLoad.value || finalIng.value) {
+    ElMessage.warning('有问题正在回答中，请稍后再修改')
+    return
+  }
+  if (type.value === 'sample') {
+    const targetFiles = Array.isArray(file) ? file : [file]
+    for (const item of targetFiles) {
+      if (!item || item.status === STATUS.SUCCESS) {
+        continue
+      }
+      item.status = STATUS.UPLOADING
+      item.progress = 0
+      item.uploadResult = null
+      previewFileId.value = null
+      previewContent.value = null
+      previewType.value = ''
+      try {
+        previewFileId.value = item.uid
+        const uploadResult = await multipartUploadFile(item)
+        item.status = STATUS.SUCCESS
+        item.progress = 100
+        item.uploadResult = {
+          fileId: {
+            fileId: uploadResult?.fileId || uploadResult?.id,
+            local: true
+          },
+          fileName: uploadResult?.fileName,
+          filePath: uploadResult?.filePath,
+          fileType: uploadResult?.fileType || uploadResult?.contentType,
+          originalFileName: uploadResult?.originalFileName || item.name,
+          uploadTime: uploadResult?.uploadTime,
+          fileUrl: uploadResult?.fileUrl
+        }
+      } catch (error) {
+        previewFileId.value = null
+        if (error?.name === 'AbortError') {
+          item.status = STATUS.PAUSED
+        } else {
+          item.status = STATUS.ERROR
+          console.error('Multipart upload failed:', error)
+          ElMessage.error(error?.message || '上传失败，请重试')
+        }
+        return
+      }
+    }
+
+    if (fileQueue.value.every(f => f.status === STATUS.SUCCESS)) {
+      const ary = fileQueue.value
+        .map(buildSampleEmitPayload)
+        .filter(Boolean)
+      fileAry.value = ary
+      eventBus.emit('submit-sampleFile', ary)
+      dialogVisible.value = false
+    }
+  } else {
+    const CancelToken = axios.CancelToken
+    const source = CancelToken.source()
+    file.status = STATUS.UPLOADING
+    file.source = source
+    file.cancel = source.cancel
+    // 清除旧预览状态
+    previewFileId.value = null
+    previewContent.value = null
+    previewType.value = ''
+    try {
+      previewFileId.value = file.uid
+      const formData = new FormData()
+      formData.append('files', file.raw)
+      formData.append('local', true)
+      await axios
+        .post(import.meta.env.VITE_API_BASE_URL + '/AI/fileUpload', formData, {
+          cancelToken: source.token,
+          onUploadProgress: progressEvent => {
+            file.progress = Math.round((progressEvent.loaded / progressEvent.total) * 100)
+          }
+        })
+        .then(res => {
+          if (res.data.status) {
+            file.status = STATUS.SUCCESS
+            file.progress = 100
+            const uploadedData = res.data?.data?.[0] || {}
+            const decodedOriginalName = decodeURIComponent(
+              uploadedData.originalFileName || file.name || ''
+            )
+            const decodedFileName = decodeURIComponent(uploadedData.fileName || file.name || '')
+            const normalizedFile = {
+              fileId: {
+                fileId: uploadedData.fileId,
+                local: true
+              },
+              fileName: decodedFileName || decodedOriginalName,
+              filePath: uploadedData.filePath,
+              fileType: uploadedData.fileType,
+              originalFileName: decodedOriginalName || decodedFileName,
+              uploadTime: uploadedData.uploadTime,
+              local: true
+            }
+
+            if (type.value === 'jobJd') {
+              updateJobJdFile(normalizedFile)
+              dialogVisible.value = false
+            } else {
+              fileObj.value = {
+                ...uploadedData,
+                originalFileName: decodedOriginalName || uploadedData.originalFileName,
+                fileName: decodedFileName || uploadedData.fileName
+              }
+              if (type.value === 'tran') {
+                limitFile.value = normalizedFile
+              } else {
+                limitFinalFile.value = normalizedFile
+              }
+              currentId.value = ''
+              emit(type.value === 'tran' ? 'submit-tran' : 'submit-final', normalizedFile)
+            }
+          } else {
+            ElMessage.error(res.data.message)
+            file.status = STATUS.ERROR
+            previewFileId.value = null
+          }
+        })
+    } catch (error) {
+      previewFileId.value = null
+      if (axios.isCancel(error)) {
+        file.status = STATUS.PAUSED
+      } else {
+        file.status = STATUS.ERROR
+        console.error('Upload failed:', error)
+      }
+      throw error
+    }
+  }
+}
+// 处理超出限制
+// const handleExceed = (files, fileList) => {
+//   ElMessage.warning('最多只能上传5个附件')
+// }
+// 进度条颜色计算
+const customProgressColor = file => {
+  return statusColors[file.status] || '#409EFF'
+}
+
+const checkFileSize = file => {
+  const isLt10M = file.size / 1024 / 1024 < fileMaxSize
+  if (!isLt10M) {
+    ElMessage.warning('附件大小不能超过' + fileMaxSize + 'MB!')
+  }
+
+  return isLt10M
+}
+const changeFile = async file => {
+  if (fileQueue.value.length >= 5) {
+    selectedFile.value = []
+    ElMessage.warning('一次性最多上传五个文件')
+    return
+  }
+  try {
+    for (var i = 0; i < fileOptions.value.length; i++) {
+      if (fileOptions.value[i].id === file) {
+        const obj = {
+          cancel: null,
+          extension: fileOptions.value[i].fileType,
+          name: fileOptions.value[i].fileName,
+          raw: await getSampleFile(fileOptions.value[i].id),
+          percentage: 0,
+          progress: '',
+          size: fileOptions.value[i].fileSize,
+          source: null,
+          status: 'pending',
+          uid: fileOptions.value[i].id
+        }
+        fileQueue.value.push(obj)
+        fileQueue.value = fileQueue.value.reduce((acc, current) => {
+          const isExist = acc.some(item => item.name === current.name)
+          if (!isExist) {
+            acc.push(current)
+          } else {
+            selectedFile.value = []
+            ElMessage.warning('请勿上传同名文件')
+          }
+          return acc
+        }, [])
+        selectedFile.value = []
+      }
+    }
+    // 在这里使用 raw 进行后续操作
+  } catch (error) {
+    console.error('Error:', error)
+  }
+}
+// 兼容Element原生状态类型
+const getStatusType = status => {
+  return status === STATUS.ERROR ? 'exception' : status === STATUS.SUCCESS ? 'success' : undefined
+}
+
+// 附件添加处理
+const handleFileAdd = uploadFile => {
+  const file_extension = uploadFile.name.split('.').pop().toLowerCase()
+  if (!allowedFileTypes.split(',').includes('.' + file_extension)
+  ) {
+    ElMessage.warning('暂不支持此格式上传')
+    return
+  }
+
+  if (fileQueue.value.length >= maxFileNumber) {
+    ElMessage.warning('一次性最多上传'+ maxFileNumber + '个文件')
+    fileQueue.value = fileQueue.value.slice(-maxFileNumber)
+    return
+  }
+  const file = {
+    ...uploadFile,
+    uid: uploadFile.uid,
+    size: uploadFile.size,
+    name: uploadFile.name,
+    extension: uploadFile.name.split('.').pop().toLowerCase(),
+    progress: '',
+    status: STATUS.PENDING,
+    cancel: null,
+    source: null
+  }
+  if (file.size / 1024 / 1024 > fileMaxSize) {
+    ElMessage.warning('附件大小不能超过' + fileMaxSize + 'MB!')
+    return
+  }
+  previewFileId.value = file.uid
+  if (type.value !== 'sample') {
+    fileQueue.value = []
+  }
+
+  fileQueue.value.push(file)
+
+  fileQueue.value = fileQueue.value.reduce((acc, current) => {
+    const isExist = acc.some(item => item.name === current.name)
+    if (!isExist) {
+      acc.push(current)
+    } else {
+      ElMessage.warning('请勿上传同名文件')
+    }
+    return acc
+  }, [])
+  handlePreview((type.value === 'sample' && !isCompareAgent.value) ? fileQueue.value[0] : file)
+}
+
+// 暂停上传
+const pauseUpload = file => {
+  if (file.source) {
+    file.source.cancel('User paused upload')
+    file.status = STATUS.PAUSED
+  }
+}
+
+// 继续上传
+const resumeUpload = file => {
+  startUpload(file)
+}
+
+// 重试上传
+const retryUpload = file => {
+  file.progress = 0
+  file.status = STATUS.PENDING
+  startUpload(file)
+}
+
+// 附件预览处理
+const handlePreview = async file => {
+  if (!file) {
+    return
+  }
+  try {
+    if (['txt'].includes(file.extension)) {
+      // 处理文本附件
+      const reader = new FileReader()
+      reader.onload = async function (e) {
+        await nextTick()
+        previewContent.value = e.target.result
+        previewType.value = 'text'
+        previewFileId.value = 123
+      }
+
+      reader.readAsText(file.raw)
+    } else if (['docx', 'doc'].includes(file.extension)) {
+      // 处理Word文档
+      const arrayBuffer = await file.raw.arrayBuffer()
+      const result = await mammoth.convertToHtml({ arrayBuffer })
+
+      // 添加Word文档基础样式
+      previewContent.value = `
+        <div class="word-preview">
+          <style>
+            .word-preview {
+              font-family: "Times New Roman", serif;
+              line-height: 1.2;
+              padding: 20px;
+              font-size:14px
+            }
+            table {
+              border-collapse: collapse;
+              margin: 10px 0;
+            }
+            td {
+              border: 1px solid #ddd;
+              padding: 8px;
+            }
+          </style>
+          ${result.value}
+        </div>
+      `
+      previewType.value = 'html'
+      previewFileId.value = 123
+
+      // 处理图片显示（如果需要）
+      result.messages.forEach(message => {})
+    } else if (['pdf'].includes(file.extension)) {
+      // 生成PDF的Blob URL并预览
+      const pdfUrl = URL.createObjectURL(file.raw)
+      previewContent.value = pdfUrl
+      previewFileId.value = 123
+      previewType.value = 'pdf'
+
+      // 在组件销毁或关闭预览时记得释放URL
+      // 例如在onUnmounted或关闭弹窗的方法中调用 URL.revokeObjectURL(pdfUrl)
+    }  else if (['pptx', 'ppt'].includes(file.extension)) {
+      // 新增：处理PPT文件
+      previewContent.value = await file.raw.arrayBuffer() // 直接传递ArrayBuffer
+      previewType.value = 'pptx' // 标识为PPT类型
+    } else if (['xlsx', 'xls'].includes(file.extension)) {
+      isXls.value = file.extension === 'xls';
+      previewContent.value = ''
+      previewContent.value = await file.raw.arrayBuffer() // 直接传递ArrayBuffer
+      previewType.value = 'excel' // 标识为Excel类型
+    }  else if (['png', 'jpg', 'jpeg', 'gif'].includes(file.extension)) {
+      previewType.value = 'img'
+      nextTick(() => {
+        previewContent.value = URL.createObjectURL(file.raw)
+      }, 100)
+    } else {
+      previewContent.value = '不支持此附件预览'
+      previewType.value = 'unsupported'
+    }
+  } catch (error) {
+    console.error('预览失败:', error)
+    previewContent.value = '附件预览失败'
+    previewType.value = 'error'
+  }
+}
+
+const getFileList = () => {
+  const userInfo = JSON.parse(localStorage.getItem('userInfo'))
+  request
+    .post('/Files/getFileListByUserId', {
+      userId: userInfo.id,
+      target: selectedMode.value,
+      isPublic: selectedKnow.value === 1 ? false : true,
+      sortType: 'time',
+      increase: true,
+      keywords: ''
+    })
+    .then(res => {
+      if (res.status) {
+        fileOptions.value = res.data.content
+      }
+    })
+    .catch(err => {
+      console.error(err)
+    })
+}
+const openFile = (val, ary) => {
+  console.log('openFile', val, ary)
+  type.value = val
+  updateUploadConfig()
+  dialogVisible.value = true
+  if (val === 'sample') {
+    if (ary) {
+      fileAry.value = ary
+    }
+    knowOptions.value = []
+    selectedKnow.value = 1
+    selectedMode.value = ''
+    selectedFile.value = []
+    fileOptions.value = []
+    getFileList()
+    getFileAry()
+  } else {
+    const existingFile = type.value === 'jobJd' ? jobJdFile.value : fileObj.value
+    if (existingFile) {
+      loadSingleFile(existingFile)
+    } else {
+      fileQueue.value = []
+    }
+  }
+}
+
+const getTextAfterLastDot = str => {
+  const lastDotIndex = str.lastIndexOf('.')
+  if (lastDotIndex === -1) return '' // 没有点号时返回空字符串
+  return str.slice(lastDotIndex + 1)
+}
+const getFileAry = () => {
+  fileQueue.value = []
+  for (var i = 0; i < fileAry.value.length; i++) {
+    const name = fileAry.value[i].originalFileName
+    if (typeof fileAry.value[i].local === 'undefined') {
+      fileAry.value[i].local = true
+    }
+    const obj = {
+      fileId: fileAry.value[i].fileId.fileId ? fileAry.value[i].fileId.fileId : fileAry.value[i].fileId,
+      local: fileAry.value[i].fileId.local !== undefined ? fileAry.value[i].fileId.local : false
+    }
+
+    fetch(import.meta.env.VITE_API_BASE_URL + '/Files/getFileById', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(obj)
+    })
+      .then(response => {
+        // 从 Content-Disposition 中解析附件名
+        const disposition = response.headers.get('Content-Disposition')
+        let filename = 'default_filename' // 默认附件名
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+          filename = disposition.split('filename=')[1].replace(/"/g, '')
+        }
+
+        // 获取二进制数据
+        return response.blob().then(blob => ({ blob, filename }))
+      })
+      .then(({ blob, filename }) => {
+        // 将 Blob 转换为 File 对象（类似 file.raw）
+        const file = new File([blob], filename, { type: blob.type })
+        const firstDecode = decodeURIComponent(file.name)
+        const fileOther = {
+          raw: file,
+          uid: file.lastModified,
+          size: file.size,
+          name: decodeURIComponent(firstDecode),
+          extension: getTextAfterLastDot(name),
+          progress: 100,
+          status: STATUS.SUCCESS,
+          cancel: null,
+          source: null
+        }
+        previewFileId.value = fileOther.uid
+        // 此时可以像处理 el-upload 的 file.raw 一样处理 file
+
+        fileQueue.value.push(fileOther)
+        handlePreview(fileQueue.value[0])
+      })
+      .catch(error => {
+        console.error('获取附件失败:', error)
+      })
+  }
+}
+const getSampleFile = id => {
+  return fetch(import.meta.env.VITE_API_BASE_URL + '/Files/knowledgeFileById?id=' + id, {
+    method: 'POST'
+  })
+    .then(response => {
+      const disposition = response.headers.get('Content-Disposition')
+      let filename = 'default_filename'
+      if (disposition && disposition.indexOf('filename=') !== -1) {
+        filename = disposition.split('filename=')[1].replace(/"/g, '')
+      }
+      return response.blob().then(blob => ({ blob, filename }))
+    })
+    .then(({ blob, filename }) => {
+      return new File([blob], filename, { type: blob.type })
+    })
+    .catch(error => {
+      console.error('获取附件失败:', error)
+      throw error // 重新抛出错误以便外部捕获
+    })
+}
+const loadSingleFile = sourceFile => {
+  if (!sourceFile) {
+    return
+  }
+  const localFlag =
+    typeof sourceFile.fileId?.local !== 'undefined' ? sourceFile.fileId.local : sourceFile.local ?? true
+  const fileId = sourceFile.fileId?.fileId ? sourceFile.fileId.fileId : sourceFile.fileId
+  const obj = {
+    fileId,
+    local: localFlag !== undefined ? localFlag : true
+  }
+  // 使用 POST 请求（与后端 @PostMapping 匹配）
+  fetch(import.meta.env.VITE_API_BASE_URL + '/Files/getFileById', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(obj)
+  })
+    .then(response => {
+      // 从 Content-Disposition 中解析附件名
+      const disposition = response.headers.get('Content-Disposition')
+      let filename = 'default_filename' // 默认附件名
+      if (disposition && disposition.indexOf('filename=') !== -1) {
+        filename = disposition.split('filename=')[1].replace(/"/g, '')
+      }
+
+      // 获取二进制数据
+      return response.blob().then(blob => ({ blob, filename }))
+    })
+    .then(({ blob, filename }) => {
+      // 将 Blob 转换为 File 对象（类似 file.raw）
+      const file = new File([blob], filename, { type: blob.type })
+
+      const fileOther = {
+        raw: file,
+        uid: file.lastModified,
+        size: file.size,
+        name: decodeURIComponent(file.name),
+        extension: getTextAfterLastDot(sourceFile.originalFileName || file.name),
+        progress: 100,
+        status: STATUS.SUCCESS,
+        cancel: null,
+        source: null
+      }
+      previewFileId.value = fileOther.uid
+      fileOther.name = decodeURIComponent(fileOther.name)
+      // 此时可以像处理 el-upload 的 file.raw 一样处理 file
+      fileQueue.value = []
+      fileQueue.value.push(fileOther)
+      handlePreview(fileOther)
+    })
+    .catch(error => {
+      console.error('获取附件失败:', error)
+    })
+}
+const closeFile = () => {
+  dialogVisible.value = false
+}
+// 监听附件队列变化
+watch(
+  fileQueue,
+  newVal => {
+    if (newVal.length === 0) {
+      // 队列清空时强制重置预览
+      previewContent.value = null
+      previewType.value = ''
+      previewFileId.value = null
+    }
+  },
+  { deep: true }
+)
+defineExpose({ openFile, closeFile })
+</script>
+
+<style scoped lang="less">
+.no-drag {
+  pointer-events: none; /* 禁用所有鼠标事件 */
+}
+
+.no-drag * {
+  pointer-events: auto; /* 恢复子元素的鼠标事件 */
+}
+
+.pdf-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.pdf-frame {
+  width: 100%;
+  height: 500px;
+  border: 0;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.delete-icon {
+  margin-right: 5px;
+  width: 24px;
+  height: 24px;
+}
+.upload_btn {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+  margin-bottom: 5px;
+}
+.custom-upload-dialog {
+  height: 1200px;
+  --el-dialog-margin-top: 5vh;
+}
+
+.upload-layout {
+  display: flex;
+  height: 100%;
+  gap: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.drag-bar {
+  width: 5px;
+  background-color: #f0f0f0;
+  cursor: col-resize;
+  flex-shrink: 0;
+  z-index: 3; /* 确保在顶层 */
+  height: 100%;
+}
+
+.drag-bar:hover {
+  background-color: #d9d9d9;
+}
+
+.file-list {
+  width: 500px;
+  height: 540px;
+  border-radius: 4px;
+
+  overflow-y: hidden;
+  padding-right: 15px;
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  border: 1px solid #dcdfe6;
+  z-index: 1;
+  background: white; /* 确保背景不透明 */
+  flex-shrink: 0;
+  .file_item {
+    width: 100%;
+    height: 430px;
+    overflow-y: auto;
+    margin-top: 115px;
+  }
+  .upload_list {
+    width: calc(100% - 30px);
+    margin-left: 15px;
+    position: absolute;
+    top: 15px;
+  }
+}
+
+.file-item {
+  padding: 2px 12px 12px 12px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  background: #f5f7fa;
+  transition: all 0.3s;
+  width: calc(100% - 40px);
+  margin-left: 14px;
+  margin-top: 15px;
+  background-color: #fff;
+  border: 1px solid #eee;
+  cursor: pointer;
+  .file_img {
+    width: 42px;
+    height: 52px;
+    float: left;
+    margin-right: 10px;
+    margin-top: 10px;
+    img {
+      width: 100%;
+      height: 100%;
+    }
+  }
+}
+
+.file-item:hover {
+  background: #ebedf0;
+}
+
+.file-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+  font-size: 14px;
+  width: 200px;
+}
+
+.file-type {
+  color: #909399;
+  font-size: 0.9em;
+}
+
+.file-actions {
+  margin-top: 4px;
+  text-align: right;
+  display: flex;
+  :deep(.el-button--small:hover) {
+    color: #fff;
+  }
+}
+
+.upload-area {
+  flex: 1;
+  display: flex;
+  position: relative;
+  z-index: 2;
+  background: white; /* 确保背景不透明 */
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1); /* 添加阴影增强覆盖效果 */
+}
+
+.preview-container {
+  height: 510px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  padding: 15px;
+  overflow: auto;
+  width: 100%;
+}
+.preview-container::-webkit-scrollbar {
+  width: 1px; /* 滚动条宽度 */
+}
+.preview-container::-webkit-scrollbar-track {
+  background: #f1f1f1; /* 轨道背景颜色 */
+  border-radius: 0px; /* 轨道圆角 */
+}
+.preview-container::-webkit-scrollbar-thumb {
+  background: #888; /* 滑块颜色 */
+  border-radius: 0px; /* 滑块圆角 */
+  border: 1px solid #f1f1f1; /* 滑块边框 */
+}
+.preview-container::-webkit-scrollbar-thumb:hover {
+  background: #555; /* 滑块悬停时的颜色 */
+}
+// .text-preview pre {
+//   white-space: pre-wrap;
+//   font-family: monospace;
+//   margin: 0;
+// }
+
+.unsupported-preview {
+  color: #909399;
+  text-align: center;
+  padding: 50px 0;
+}
+</style>

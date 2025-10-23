@@ -7,6 +7,7 @@ import {
     IsInt,
     IsNotEmpty,
     IsNumber,
+    IsObject,
     IsOptional,
     IsString,
     IsUUID,
@@ -20,6 +21,7 @@ import {
     RETRIEVAL_MODE,
     type RetrievalModeType,
 } from "../constants/datasets.constants";
+import { ExternalKnowledgeProvider } from "../interfaces/external-config.interface";
 import {
     RerankConfig,
     RetrievalConfig,
@@ -136,6 +138,53 @@ export class RetrievalConfigDto implements RetrievalConfig {
 }
 
 /**
+ * 外部知识库配置 DTO
+ */
+export class ExternalDatasetConfigDto {
+    /**
+     * 外部知识库提供商
+     */
+    @IsString({ message: "外部知识库提供商必须是字符串" })
+    @IsIn(["weknora"], { message: "当前仅支持 WeKnora 作为外部知识库提供商" })
+    provider: ExternalKnowledgeProvider;
+
+    /**
+     * 关联的外部知识库ID
+     */
+    @IsOptional()
+    @IsString({ message: "外部知识库ID必须是字符串" })
+    knowledgeBaseId?: string;
+
+    /**
+     * 关联的外部会话ID（可选）
+     */
+    @IsOptional()
+    @IsString({ message: "外部会话ID必须是字符串" })
+    sessionId?: string;
+
+    /**
+     * 同步状态
+     */
+    @IsOptional()
+    @IsString({ message: "同步状态必须是字符串" })
+    syncStatus?: "pending" | "synced" | "failed";
+
+    /**
+     * 上次同步时间
+     */
+    @IsOptional()
+    @IsString({ message: "上次同步时间必须是字符串" })
+    lastSyncedAt?: string;
+
+    /**
+     * 附加元数据
+     */
+    @IsOptional()
+    @IsObject({ message: "元数据必须是对象" })
+    metadata?: Record<string, unknown>;
+}
+
+/**
  * 创建知识库 DTO
  */
 export class CreateDatasetDto {
@@ -173,6 +222,14 @@ export class CreateDatasetDto {
     @ValidateNested()
     @Type(() => RetrievalConfigDto)
     retrievalConfig: RetrievalConfigDto;
+
+    /**
+     * 外部知识库配置
+     */
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ExternalDatasetConfigDto)
+    externalConfig?: ExternalDatasetConfigDto;
 }
 
 /**
@@ -313,4 +370,12 @@ export class UpdateDatasetDto {
     @ValidateNested()
     @Type(() => RetrievalConfigDto)
     retrievalConfig?: RetrievalConfigDto;
+
+    /**
+     * 外部知识库配置
+     */
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => ExternalDatasetConfigDto)
+    externalConfig?: ExternalDatasetConfigDto;
 }

@@ -7,6 +7,7 @@ import { RolePermissionService } from "@common/modules/auth/services/role-permis
 import { UserTokenService } from "@common/modules/auth/services/user-token.service";
 import { DictModule } from "@common/modules/dict/dict.module";
 import { WechatOaService } from "@common/modules/wechat/services/wechatoa.service";
+import { WorkflowModule } from "@common/modules/workflow/workflow.module";
 import { CacheModule } from "@core/cache/cache.module";
 import { RedisModule } from "@core/redis/redis.module";
 import { ChannelModule } from "@modules/console/channel/channel.module";
@@ -39,6 +40,9 @@ import { AuthController } from "./auth.controller";
 
         // 导入频道模块
         ChannelModule,
+
+        // 导入工作流模块
+        WorkflowModule,
 
         // 导入发现模块，用于扫描控制器
         DiscoveryModule,

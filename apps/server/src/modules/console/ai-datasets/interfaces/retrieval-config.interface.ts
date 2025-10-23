@@ -49,6 +49,10 @@ export interface RetrievalChunk {
     content: string;
     /** 段落内容 */
     score: number;
+    /** 文档ID或外部知识ID */
+    documentId?: string;
+    /** 外部知识库提供商 */
+    provider?: string;
     /** 元数据 */
     metadata?: Record<string, unknown>;
     /** 来源 */

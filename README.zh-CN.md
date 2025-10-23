@@ -51,6 +51,28 @@ http://localhost:4090
 - **用户名：** `admin`  
 - **密码：** `FastbuildAI&123456`  
 
+## N8N 工作流集成
+
+1. 在 `.env.production.local` 中启用工作流桥接：
+
+    ```env
+    N8N_ENABLED=true
+    N8N_WORKFLOW_USER_REGISTER_PATH=fastbuildai/user-registered
+    # 如果 Webhook 需要鉴权，可额外配置：
+    # N8N_WEBHOOK_AUTH_HEADER=Authorization
+    # N8N_WEBHOOK_AUTH_TOKEN=Bearer <token>
+    ```
+
+2. 与主程序一起启动 N8N 服务：
+
+    ```bash
+    docker compose -p fastbuildai --env-file ./.env.production.local -f ./docker/docker-compose.yml up -d n8n
+    ```
+
+3. 访问 `http://localhost:5678`（默认账号：`admin` / `fastbuildai`），导入示例工作流 `workflows/n8n/user-registered.workflow.json`。
+
+4. 激活工作流（可选），随后在 FastbuildAI 中注册新用户即可触发 `user.registered` 事件，您可以基于返回的数据继续编排自动化流程。
+
 ## 功能特性
 
 - ✅ **AI对话** – 多模型 AI 对话。

@@ -9,6 +9,7 @@ import {
 } from "@common/constants/status-codes.constant";
 import { HttpExceptionFactory } from "@common/exceptions/http-exception.factory";
 import { LoginUserPlayground, UserPlayground } from "@common/interfaces/context.interface";
+import { N8nWorkflowService } from "@common/modules/workflow/services/n8n-workflow.service";
 import { checkUserLoginPlayground, generateNo } from "@common/utils/helper.util";
 import { isDisabled } from "@common/utils/is.util";
 import { Injectable } from "@nestjs/common";
@@ -33,6 +34,7 @@ export class AuthService extends BaseService<User> {
         private userRepository: Repository<User>,
         private rolePermissionService: RolePermissionService,
         public userTokenService: UserTokenService,
+        private readonly workflowService: N8nWorkflowService,
     ) {
         super(userRepository);
     }
@@ -161,6 +163,17 @@ export class AuthService extends BaseService<User> {
             { excludeFields: ["password"] },
         );
 
+        const terminalLabel =
+            Object.entries(UserTerminal).find(([, value]) => value === terminal)?.[0] ??
+            String(terminal);
+        
+        void this.workflowService.emitUserRegistered({
+            user: this.sanitizeUserForWorkflow(savedUser),
+            ipAddress,
+            userAgent,
+            terminal: terminalLabel,
+        });
+
         // 生成&验证令牌
         const payload = checkUserLoginPlayground({
             id: savedUser.id,
@@ -188,6 +201,34 @@ export class AuthService extends BaseService<User> {
                 role: {},
             },
         };
+    }
+
+    private sanitizeUserForWorkflow(user: Partial<User>): Record<string, unknown> {
+        if (!user) {
+            return {};
+        }
+
+        const {
+            password: _password,
+            permissions: _permissions,
+            role: _role,
+            ...rest
+        } = user as Partial<User> & {
+            permissions?: unknown;
+            role?: unknown;
+        };
+
+        const sanitized: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries(rest)) {
+            if (value === undefined) {
+                continue;
+            }
+
+            sanitized[key] = value instanceof Date ? value.toISOString() : value;
+        }
+
+        return sanitized;
     }
 
     /**

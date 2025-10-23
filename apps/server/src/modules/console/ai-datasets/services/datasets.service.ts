@@ -20,6 +20,7 @@ import { FileSegmentResultDto, IndexingSegmentsDto } from "../dto/indexing-segme
 import { Datasets } from "../entities/datasets.entity";
 import { DatasetsDocument } from "../entities/datasets-document.entity";
 import { DatasetsSegments } from "../entities/datasets-segments.entity";
+import { ExternalDatasetConfig } from "../interfaces/external-config.interface";
 import {
     RerankConfig,
     RetrievalConfig,
@@ -28,7 +29,7 @@ import {
 import { DatasetMemberService } from "./datasets-member.service";
 import { DocumentsService } from "./documents.service";
 import { IndexingService } from "./indexing.service";
-// ...导入部分保持不变
+import { WeknoraIntegrationService } from "./weknora-integration.service";
 
 const RAG_SERVICE_CONSTANTS = {
     BATCH_SIZE: 10,
@@ -60,8 +61,69 @@ export class DatasetsService extends BaseService<Datasets> {
         private readonly documentsService: DocumentsService,
         @InjectRepository(Agent)
         private readonly agentRepository: Repository<Agent>,
+        private readonly weknoraIntegrationService: WeknoraIntegrationService,
     ) {
         super(datasetsRepository);
+    }
+
+    /**
+     * 规范化外部知识库配置
+     */
+    private normalizeExternalConfig(
+        config?: Partial<ExternalDatasetConfig>,
+    ): ExternalDatasetConfig | undefined {
+        if (!config) {
+            return undefined;
+        }
+
+        if (config.provider === "weknora") {
+            return {
+                provider: "weknora",
+                knowledgeBaseId: config.knowledgeBaseId,
+                sessionId: config.sessionId,
+                syncStatus: config.syncStatus,
+                lastSyncedAt: config.lastSyncedAt,
+                metadata: config.metadata,
+            };
+        }
+
+        return undefined;
+    }
+
+    /**
+     * 构建 WeKnora 需要的分段配置
+     */
+    private buildWeKnoraChunkingConfig(indexingConfig: IndexingSegmentsDto): {
+        chunk_size: number;
+        chunk_overlap: number;
+        separators: string[];
+        enable_multimodal: boolean;
+    } {
+        const chunkSize = indexingConfig.segmentation?.maxSegmentLength ?? 512;
+        const chunkOverlap = indexingConfig.segmentation?.segmentOverlap ?? 50;
+
+        const separators = new Set<string>([".", "?", "!", "。", "？", "！"]);
+
+        const parseIdentifier = (identifier?: string): string | undefined => {
+            if (!identifier) return undefined;
+            return identifier.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r");
+        };
+
+        const primarySep = parseIdentifier(indexingConfig.segmentation?.segmentIdentifier);
+        if (primarySep) {
+            separators.add(primarySep);
+        }
+        const secondarySep = parseIdentifier(indexingConfig.subSegmentation?.segmentIdentifier);
+        if (secondarySep) {
+            separators.add(secondarySep);
+        }
+
+        return {
+            chunk_size: chunkSize,
+            chunk_overlap: chunkOverlap,
+            separators: Array.from(separators),
+            enable_multimodal: false,
+        };
     }
 
     /**
@@ -77,6 +139,9 @@ export class DatasetsService extends BaseService<Datasets> {
 
         try {
             const config = this.buildRetrievalConfig(retrievalConfig);
+            const externalConfig = this.normalizeExternalConfig(
+                dto.externalConfig as unknown as Partial<ExternalDatasetConfig>,
+            );
 
             const created = await this.create({
                 name,
@@ -85,15 +150,43 @@ export class DatasetsService extends BaseService<Datasets> {
                 embeddingModelId,
                 retrievalMode: retrievalConfig.retrievalMode,
                 retrievalConfig: config,
+                externalConfig,
                 createdBy: user.id,
             });
 
-            const dataset = (await this.findOneById(created.id!)) as Datasets;
+            let dataset = (await this.findOneById(created.id!)) as Datasets;
             await this.datasetMemberService.initializeOwner(dataset.id, user.id);
             this.logger.log(`[+] 所有者初始化完成: ${user.id}`);
 
             this.logger.log(`[+] 同步创建文档记录: ${dataset.id}`);
             await this.createDocumentsSync(dataset, indexingConfig, user);
+
+            const chunkingConfig = this.buildWeKnoraChunkingConfig(indexingConfig);
+
+            const shouldBindExternal =
+                (externalConfig?.provider === "weknora" ||
+                    (!externalConfig && this.weknoraIntegrationService.shouldAutoBind())) &&
+                this.weknoraIntegrationService.isConfigured();
+
+            if (shouldBindExternal) {
+                const resolvedConfig = await this.weknoraIntegrationService.ensureKnowledgeBase(
+                    dataset.id,
+                    dataset.name,
+                    dataset.externalConfig,
+                    chunkingConfig,
+                    dataset.description,
+                );
+
+                if (resolvedConfig) {
+                    await this.datasetsRepository.update(dataset.id, {
+                        externalConfig: resolvedConfig,
+                    });
+                    dataset = {
+                        ...dataset,
+                        externalConfig: resolvedConfig,
+                    };
+                }
+            }
 
             // 异步处理文件
             this.processDatasetFilesAsync(dataset, indexingConfig, user);
@@ -154,6 +247,10 @@ export class DatasetsService extends BaseService<Datasets> {
         };
 
         // 创建知识库
+        const autoExternalConfig = this.weknoraIntegrationService.shouldAutoBind()
+            ? ({ provider: "weknora", syncStatus: "pending" } as ExternalDatasetConfig)
+            : undefined;
+
         const created = await this.create({
             name,
             description,
@@ -161,11 +258,30 @@ export class DatasetsService extends BaseService<Datasets> {
             embeddingModelId,
             indexingConfig,
             retrievalConfig,
+            externalConfig: autoExternalConfig,
         });
         const dataset = (await this.findOneById(created.id!)) as Datasets;
         // 初始化成员所有者
         await this.datasetMemberService.initializeOwner(dataset.id, user.id);
         this.logger.log(`[+] 空知识库创建并初始化所有者: ${user.id}`);
+
+        if (autoExternalConfig && this.weknoraIntegrationService.isConfigured()) {
+            const resolvedConfig = await this.weknoraIntegrationService.ensureKnowledgeBase(
+                dataset.id,
+                dataset.name,
+                dataset.externalConfig,
+                this.buildWeKnoraChunkingConfig(indexingConfig),
+                dataset.description,
+            );
+
+            if (resolvedConfig) {
+                await this.datasetsRepository.update(dataset.id, {
+                    externalConfig: resolvedConfig,
+                });
+                dataset.externalConfig = resolvedConfig;
+            }
+        }
+
         return dataset;
     }
 
@@ -251,9 +367,41 @@ export class DatasetsService extends BaseService<Datasets> {
                 updateData.retrievalConfig = config;
             }
 
+            if (dto.externalConfig !== undefined) {
+                updateData.externalConfig = this.normalizeExternalConfig(
+                    dto.externalConfig as unknown as Partial<ExternalDatasetConfig>,
+                );
+            }
+
             await this.datasetsRepository.update(id, updateData);
             this.logger.log(`[+] 知识库更新成功: ${id}`);
-            return (await this.findOneById(id)) as Datasets;
+
+            let updatedDataset = (await this.findOneById(id)) as Datasets;
+
+            const shouldEnsureWeKnora =
+                this.weknoraIntegrationService.isConfigured() &&
+                updatedDataset.externalConfig?.provider === "weknora" &&
+                !updatedDataset.externalConfig?.knowledgeBaseId;
+
+            if (shouldEnsureWeKnora) {
+                const resolvedConfig = await this.weknoraIntegrationService.ensureKnowledgeBase(
+                    updatedDataset.id,
+                    updatedDataset.name,
+                    updatedDataset.externalConfig,
+                    this.buildWeKnoraChunkingConfig(updatedDataset.indexingConfig),
+                    updatedDataset.description,
+                );
+
+                if (resolvedConfig) {
+                    await this.datasetsRepository.update(id, { externalConfig: resolvedConfig });
+                    updatedDataset = {
+                        ...updatedDataset,
+                        externalConfig: resolvedConfig,
+                    };
+                }
+            }
+
+            return updatedDataset;
         } catch (err) {
             this.logger.error(`[!] 更新失败: ${err.message}`, err.stack);
             throw HttpExceptionFactory.internal(`更新知识库失败: ${err.message}`);

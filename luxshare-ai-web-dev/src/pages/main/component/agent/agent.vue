@@ -1,0 +1,553 @@
+<script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue'
+import AgentCard from './agentCard.vue'
+import {getAgentListByUserId} from '../../../../api/agent/actions'
+import {saveAgent} from '../../../../api/agent/actions'
+import {getAgentContent} from '../../../../api/agent/actions'
+import {removeAgentById} from '../../../../api/agent/actions'
+import {getAgentDetailById} from '../../../../api/agent/actions'
+import {getAgentChatByAgentId} from '../../../../api/agent/actions'
+import {getImageRecognitionsByUserId} from '../../../../api/agent/actions'
+import {saveImgRecognition} from '../../../../api/agent/actions'
+import {getImgRecognitionById} from '../../../../api/agent/actions'
+import {deleteImgRecognitionById} from '../../../../api/agent/actions'
+import {PageType} from '../../../../utils/common'
+import {FromPage} from '../../../../utils/common'
+import CreateAgentForm from "../agent/createAgentForm.vue";
+import {ElMessage} from "element-plus";
+import request from '../../../../utils/request'
+import eventBus from '../../../../utils/eventBus'
+import { COMPARE_AGENT_TYPE, RESUME_AGENT_TYPE, TABLE_AGENT_TYPE } from '../../../../utils/constants'
+import { useShared } from '../../../../utils/useShared'
+import { Loading } from '@element-plus/icons-vue'
+import DeleteConfirmDialog from '@/pages/main/component/options/deleteConfirmDialog.vue'
+
+// 定义30种好看的背景色
+const gradients = [
+  '#EDF3FF', '#E6E6FF', '#D9F8FB', '#BCF3DD', '#FEE7D7',
+  '#FFE6E6', '#E6FFE6', '#FFF8E1', '#F5F0FF', '#E0F7FA',
+  '#FFF0F0', '#F0FFF0', '#F0F0FF', '#FFFFF0', '#F0F8FF',
+  '#F8F0FF', '#FFF8F0', '#F5FFFA', '#F5F5FF', '#FAFFF5',
+  '#E8F5E9', '#E3F2FD', '#FFF3E0', '#E0F2F1', '#FCE4EC',
+  '#F3E5F5', '#E1F5FE', '#F9FBE7', '#FFEBEE', '#E8EAF6'
+];
+
+// 模拟数据
+const agents = ref([])
+const loading = ref(true) // 添加加载状态
+let userId = ref(JSON.parse(localStorage.getItem('userInfo')).id)
+let compareAgentName = ref('镭雕图片对比')
+let compareAgentContent = ref('镭雕图片对比是一名精确、细致的图片对比专家，擅长对多张图片进行逐项、逐行的差异分析。\n' +
+  '它会在用户提供至少两张图片后，执行对比任务，输出一张包含所有对比项的表格。\n' +
+  '分析原则是**"无遗漏"**：\n' +
+  '\n' +
+  '不仅指出不同点，也会列出相同点，并在差异分析中标明"无差异"\n' +
+  '\n' +
+  '差异分类会细化到具体细节层面（如字符内容、符号形状、颜色值、位置偏差、线条粗细、阴影效果等），避免笼统描述\n' +
+  '\n' +
+  '无论差异大小（即使只有一个像素、符号或颜色值的变化）都会被明确记录\n' +
+  '\n' +
+  '表格格式固定为：\n' +
+  '\n' +
+  '| 对比项 | 图1 | 图2 | ... | 图n | 差异分析 |\n' +
+  '\n' +
+  '通过这种方式，智能体可为视觉检查、质量检测、图像版本比对等场景提供高精度分析报告。')
+
+let tableAgentName = ref('表格处理大师')
+
+let tableAgentContent = ref('表格处理大师是一名高效、严谨的表格数据处理专家，擅长对复杂表格进行结构化解析、自动化清洗和多维度分析。\n' +
+
+  '它会在用户提供原始表格数据后，执行深度处理任务，输出标准化表格或结构化分析报告。\n' +
+
+  '处理原则是​"零失真"​​：\n' +
+
+  '\n' +
+
+  '不仅完成基础格式转换，还会保留原始数据的完整关联性和隐藏逻辑\n' +
+
+  '\n' +
+
+  '处理维度覆盖表格所有要素（如单元格合并关系、公式依赖链、数据有效性规则、条件格式等）\n' +
+
+  '\n' +
+
+  '任何数据变动（包括格式微调、公式重计算或行列置换）都会生成完整变更日志\n' +
+
+  '\n' +
+
+  '核心输出包括：\n' +
+
+  '\n' +
+
+  '1. ​基准表格​：| 原始字段 | 处理后字段 | 处理类型 | 变更说明 |\n' +
+
+  '2. ​关系图谱​：展示公式引用/数据验证等跨表格关联\n' +
+
+  '3. ​质量报告​：标记空值/异常值/逻辑冲突的详细位置\n' +
+
+  '\n' +
+
+  '通过这种方式，智能体可为财务对账、科研数据清洗、跨系统数据迁移等场景提供可审计的自动化解决方案。')
+
+
+let resumeAgentName = ref('简历助手')
+
+let resumeAgentContent = ref('简历助手是一名专业的人才甄选伙伴，擅长理解岗位需求并快速匹配候选人亮点，帮助团队精准高效地完成招聘筛选。')
+
+onMounted(() => {
+  fetchAgentList()
+  eventBus.on("backToAgentList", () => {
+    pageType.value = PageType.LIST_PAGE
+    fetchAgentList()
+  })
+})
+
+onUnmounted(() => {
+  eventBus.off("backToAgentList", () => {
+    pageType.value = PageType.LIST_PAGE
+    fetchAgentList()
+  })
+})
+
+const fetchAgentList = async () => {
+  loading.value = true // 开始加载
+  const userInfo = JSON.parse(localStorage.getItem('userInfo'))
+  let result = await getAgentListByUserId(userInfo.id)
+  if (result.status) {
+    if (!result.data) return;
+    if (result.data.length === 0) {
+      // pageType.value = PageType.EMPTY_PAGE
+    }
+    agents.value = result.data.map(item => {
+      return {
+        id: item.agentId, // 直接使用数据中的id
+        title: item.agentName, // persona.name映射到title
+        content: item.agentIntroduction, // persona.introduction映射到content
+        color: gradients[Math.floor(Math.random() * gradients.length)], // 随机选择渐变色
+        agentPic: item.agentPic, // 固定图片路径
+        agentPicUrl: item.agentPicUrl
+      };
+    });
+  } else {
+    ElMessage.error(result.message)
+  }
+  loading.value = false // 加载完成
+}
+
+const fromPage = ref(FromPage.FROM_LIST_PAGE)
+const pageType = ref(PageType.LIST_PAGE)
+const formIntel = ref({
+  name: '',
+  description: '',
+  nickName: '',
+  tone: '',
+  id: '',
+  agentPic: '',
+  agentPicUrl: '',
+  introduction: '',
+  files: []
+})
+// 标识是否还在请求生成设定
+const isComputed = ref(false)
+const cancelIntel = () => {
+  if (fromPage.value === FromPage.FROM_EMPTY_PAGE) {
+    pageType.value = PageType.EMPTY_PAGE
+  } else {
+    pageType.value = PageType.LIST_PAGE
+  }
+}
+const createData = async() => {
+  if (!formIntel.value.name) {
+    ElMessage.warning('请输入智能体名称')
+    return
+  }
+
+  if (!formIntel.value.description) {
+    ElMessage.warning('请输入智能体设定')
+    return
+  }
+  const userInfo = JSON.parse(localStorage.getItem('userInfo'))
+  const params = JSON.parse(JSON.stringify(formIntel.value))
+  try {
+    const saveResult = await saveAgent({
+      id: params.id,
+      userId: userInfo.id,
+      agentPic: params.agentPic,
+      persona: {
+        name: params.name,
+        role: params.nickName,
+        description: params.description,
+        tone: params.tone,
+        introduction: params.introduction,
+        files: params.files
+      }
+    })
+
+    if (saveResult?.status) {
+      // 如果是编辑页 则先把被编辑卡片删除
+      if (pageType.value === PageType.EDIT_PAGE) {
+        const index = agents.value.findIndex(item => item.id === saveResult.data.id);
+        if (index !== -1) {
+          agents.value.splice(index, 1);
+        }
+      }
+      agents.value.unshift({
+        id: saveResult.data.id,
+        title: saveResult.data.persona?.name,
+        content: saveResult.data.persona?.introduction,
+        agentPic: saveResult.data.agentPic,
+        agentPicUrl: saveResult.data.agentPicUrl,
+      })
+      pageType.value = PageType.LIST_PAGE
+    } else {
+      ElMessage.error(saveResult?.message || '保存失败')
+    }
+  } catch (err) {
+    // 捕获 422 等非 2xx 响应
+    const anyErr: any = err as any
+    const msg = anyErr?.response?.data?.message || anyErr?.message || '保存失败'
+    ElMessage.error(msg)
+  }
+}
+
+const addIntel = async () => {
+  if (!isComputed.value) {
+    isComputed.value = true
+    if (!formIntel.value.name && !formIntel.value.description && !formIntel.value.introduction) {
+      resetForm()
+    }
+    let agentDescResult = await getAgentContent({
+      agentName: formIntel.value.name,
+      agentDescription: formIntel.value.description,
+      agentIntroduction: formIntel.value.introduction,
+    })
+    isComputed.value = false
+    if (agentDescResult.status) {
+      formIntel.value.description = formatServerContent(agentDescResult.data.agentDescription)
+      formIntel.value.name = agentDescResult.data.agentName
+      formIntel.value.introduction = agentDescResult.data.agentIntroduction
+    } else {
+      ElMessage.error(agentDescResult.message)
+    }
+  } else {
+    isComputed.value = false
+    request.cancelRequest('/Agent/generateAgentDescription')
+    ElMessage.success('请求已中止')
+  }
+}
+
+// 格式化服务器返回的内容
+const formatServerContent = content => {
+  return content.replace(/\\n/g, '\n').replace(/\\t/g, '    ').replace(/\\r/g, '\r')
+}
+
+const goToCreateAgentPage = (page) => {
+  resetForm()
+  pageType.value = PageType.CREATE_PAGE
+  fromPage.value = page
+}
+
+const resetForm = () => {
+  // 重置对象的所有字段为空字符串
+  Object.assign(formIntel.value, {
+    name: '',
+    description: '',
+    nickName: '',
+    tone: '',
+    id: '',
+    agentPic: '',
+    introduction: '',
+    files: []
+  });
+}
+
+const deleteConfirmVisible = ref(false)
+const deletingAgentId = ref<string>('')
+
+const openDeleteAgentConfirm = (id: string) => {
+  deletingAgentId.value = id
+  deleteConfirmVisible.value = true
+}
+
+const handleConfirmDeleteAgent = async () => {
+  if (!deletingAgentId.value) {
+    deleteConfirmVisible.value = false
+    return
+  }
+  const deleteResult = await removeAgentById(deletingAgentId.value)
+  if (deleteResult.status) {
+    ElMessage.success('删除成功！');
+    await fetchAgentList()
+  } else {
+    ElMessage.error(deleteResult.message)
+  }
+  deletingAgentId.value = ''
+  deleteConfirmVisible.value = false
+}
+
+const editAgent = async(agentId: string) => {
+  pageType.value = PageType.EDIT_PAGE
+  // 编辑前先清空数据
+  resetForm()
+  let agentDetail = await getAgentDetailById(agentId)
+  if (agentDetail.status) {
+    formIntel.value.id = agentId
+    formIntel.value.name = agentDetail.data.agentName
+    formIntel.value.introduction = agentDetail.data.agentIntroduction
+    formIntel.value.agentPic = agentDetail.data.agentPic
+    formIntel.value.description = agentDetail.data.agentDescription
+    formIntel.value.agentPicUrl = agentDetail.data.agentPicUrl
+    formIntel.value.files = agentDetail.data.agentFiles || []
+  } else {
+    ElMessage.error(agentDetail.message)
+  }
+}
+
+const showAgentConversations = async(agent: any) => {
+  currentAgentType.value = agent.agentType
+  if (agent.agentType === RESUME_AGENT_TYPE) {
+    isSendResumeMsgPage.value = true
+    isNavigatingFromAgentList.value = true
+  } else {
+    isNavigatingFromAgentList.value = false
+  }
+  switch (currentAgentType.value) {
+    case COMPARE_AGENT_TYPE :
+      currentIntel.value.name = compareAgentName.value
+      currentIntel.value.description = compareAgentContent.value
+      break
+    case TABLE_AGENT_TYPE:
+      currentIntel.value.name = tableAgentName.value
+      currentIntel.value.description = tableAgentContent.value
+      break
+    case RESUME_AGENT_TYPE:
+      currentIntel.value.name = resumeAgentName.value
+      currentIntel.value.description = resumeAgentContent.value
+      updateResumeTaskState()
+      break
+    default:
+      let agentDetail = await getAgentDetailById(agent.agentId)
+      if (agentDetail.status) {
+        currentIntel.value.name = agentDetail.data.agentName
+        currentIntel.value.description = agentDetail.data.agentDescription
+      }
+      break
+  }
+
+  currentIntelId.value = agent.agentId
+  eventBus.emit('showAgentChatList')
+}
+
+
+const {
+    currentIntelId,
+    currentIntel,
+    currentAgentType,
+    isNavigatingFromAgentList,
+    resumeTaskState,
+    userInputContent,
+    isSendResumeMsgPage,
+    updateResumeTaskState
+}  = useShared()
+</script>
+
+<template>
+  <div class="container" v-if="pageType === PageType.LIST_PAGE">
+    <div class="createAgent">
+      <div class="createButton" @click="goToCreateAgentPage(FromPage.FROM_LIST_PAGE)">
+        <span>创建智能体</span>
+      </div>
+    </div>
+    <div class="agentList">
+      <AgentCard
+        :key="userId"
+        :agent-id="userId"
+        :agent-title="compareAgentName"
+        :agent-content="compareAgentContent"
+        :background-color="gradients[Math.floor(Math.random() * gradients.length)]"
+        agent-type="compare"
+        @edit-agent="editAgent"
+        @show-agent-conversations="showAgentConversations"
+      />
+      <AgentCard
+        :key="userId + '-resume'"
+        :agent-id="userId"
+        :agent-title="resumeAgentName"
+        :agent-content="resumeAgentContent"
+        :background-color="gradients[Math.floor(Math.random() * gradients.length)]"
+        agent-type="resume"
+        @edit-agent="editAgent"
+        @show-agent-conversations="showAgentConversations"
+      />
+      <!--临时隐藏表格处理-->
+<!--      <AgentCard-->
+<!--        :key="userId"-->
+<!--        :agent-id="userId"-->
+<!--        :agent-title="tableAgentName"-->
+<!--        :agent-content="tableAgentContent"-->
+<!--        :background-color="gradients[Math.floor(Math.random() * gradients.length)]"-->
+<!--        agent-type="table"-->
+<!--        @edit-agent="editAgent"-->
+<!--        @show-agent-conversations="showAgentConversations"-->
+<!--      />-->
+      <!-- 加载状态显示 -->
+      <div v-if="loading" class="loading-agent">
+        <div class="loading-content">
+          <el-icon class="is-loading" :size="24"><Loading /></el-icon>
+          <span class="loading-text">数据加载中...</span>
+        </div>
+      </div>
+      <AgentCard
+        v-for="agent in agents"
+        :key="agent.id"
+        :agent-id="agent.id"
+        :agent-title="agent.title"
+        :agent-content="agent.content"
+        :background-color="agent.color"
+        :img-url="agent.agentPicUrl"
+        agent-type="default"
+        @delete-agent="openDeleteAgentConfirm"
+        @edit-agent="editAgent"
+        @show-agent-conversations="showAgentConversations"
+      />
+    </div>
+  </div>
+  <CreateAgentForm
+    v-if="pageType === PageType.CREATE_PAGE || pageType === PageType.EDIT_PAGE"
+    :form-intel="formIntel"
+    :type="pageType"
+    :is-computed="isComputed"
+    @cancel="cancelIntel"
+    @create="createData"
+    @add-intel="addIntel"
+  />
+  <DeleteConfirmDialog
+    v-model:visible="deleteConfirmVisible"
+    title="确认删除当前选中智能体吗？"
+    description="删除后智能体将无法恢复和找回，请谨慎操作"
+    @confirm="handleConfirmDeleteAgent"
+    @cancel="deleteConfirmVisible = false"
+  />
+  <div class="emptyPage" v-if="pageType === PageType.EMPTY_PAGE">
+    <div class="noAgentImg">
+      <img src="@/assets/agent/noAgent.png" alt="" />
+    </div>
+    <div class="noAgentTip"><span>暂无智能体</span></div>
+    <div class="createAgentButton" @click="goToCreateAgentPage(FromPage.FROM_EMPTY_PAGE)">创建智能体</div>
+  </div>
+</template>
+
+<style scoped lang="less">
+.emptyPage {
+  width: 260px;
+  height: 299.6px;
+  margin: 332.4px auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  .noAgentImg {
+    img {
+      width: 150px;
+      height: 147.88px;
+    }
+    border: 1px dashed #7f7f7f;
+  }
+  .createAgentButton {
+    width: 260px;
+    height: 54px;
+    border-radius: 27px;
+    background-color: #1b6cff;
+    cursor: pointer;
+    text-align: center;
+    line-height: 54px;
+    color: white;
+  }
+  .noAgentTip {
+    margin-top: 30px;
+    margin-bottom: 36.73px;
+    width: 90px;
+    height: 27px;
+    color: #6a6a6a;
+  }
+}
+.container {
+  margin: 44px auto 0;
+  width: 1052px;
+
+  .createAgent {
+    margin-left: 872px;
+    .createButton {
+      border: 1px solid #518fff;
+      border-radius: 27px;
+      width: 180px;
+      height: 42px;
+      cursor: pointer;
+      text-align: center;
+      line-height: 42px;
+      box-sizing: border-box;
+      span {
+        color: #518fff;
+      }
+    }
+  }
+
+  .agentList {
+    margin-top: 40px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px; /* 添加间距 */
+    position: relative; /* 为加载状态定位 */
+
+    /* 使用伪元素清除每行最后一个的额外间距 */
+    &::after {
+      content: '';
+      width: calc((100% - 32px) / 3); /* 计算卡片宽度 */
+      /* 当卡片数量不是3的倍数时，添加占位元素 */
+    }
+
+    > * {
+      /* 确保每行正好三个卡片 */
+      width: calc((100% - 32px) / 3); /* 100% - 两个间隙宽度 */
+    }
+  }
+}
+
+/* 加载状态样式 */
+.loading-agent {
+  width: calc((100% - 32px) / 3);
+  height: 186px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f8f9fb;
+  border: 1px solid #F5F5F5;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.loading-text {
+  color: #1b6cff;
+  font-size: 16px;
+}
+
+.is-loading {
+  color: #1b6cff;
+  animation: rotating 2s linear infinite;
+}
+
+@keyframes rotating {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+</style>

@@ -25,6 +25,7 @@
     <Form xsi:type="ItemRead">
       <DesktopSettings>
         <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+        <RequestedHeight>320</RequestedHeight>
       </DesktopSettings>
       <TabletSettings>
         <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />

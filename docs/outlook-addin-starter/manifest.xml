@@ -29,6 +29,7 @@
       </DesktopSettings>
       <TabletSettings>
         <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+        <RequestedHeight>320</RequestedHeight>
       </TabletSettings>
       <PhoneSettings>
         <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />

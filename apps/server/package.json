@@ -51,6 +51,7 @@
         "@types/fs-extra": "^11.0.4",
         "adm-zip": "^0.5.16",
         "ajv": "^8.17.1",
+        "@microsoft/microsoft-graph-client": "^3.0.7",
         "axios": "^1.11.0",
         "bcryptjs": "^3.0.2",
         "body-parser-xml": "^2.0.5",
@@ -132,6 +133,15 @@
             "**/*.(t|j)s"
         ],
         "coverageDirectory": "../coverage",
-        "testEnvironment": "node"
+        "testEnvironment": "node",
+        "moduleNameMapper": {
+            "^@core/(.*)$": "<rootDir>/core/$1",
+            "^@common/(.*)$": "<rootDir>/common/$1",
+            "^@modules/(.*)$": "<rootDir>/modules/$1",
+            "^@plugins/(.*)$": "<rootDir>/plugins/$1",
+            "^@assets/(.*)$": "<rootDir>/assets/$1",
+            "^@sdk/(.*)$": "<rootDir>/sdk/$1",
+            "^@/(.*)$": "<rootDir>/$1"
+        }
     }
 }

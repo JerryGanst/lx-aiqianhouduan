@@ -1,0 +1,1 @@
+const r="ホーム",e="チャージセンター",t="マイページ",n="一般設定",o="MCPサーバー設定",c="購入履歴",s="計算力明細",a="智能体",g="会話",h={home:"ホーム",rechargeCenter:e,profile:t,general:n,mcpServerSetting:o,buyRecord:c,powerDetail:s,agent:"智能体",chat:"会話"};export{a as agent,c as buyRecord,g as chat,h as default,n as general,r as home,o as mcpServerSetting,s as powerDetail,t as profile,e as rechargeCenter};

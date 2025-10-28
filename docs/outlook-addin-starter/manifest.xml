@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:type="MailApp">
+  <Id>c3f2d2b6-1b0d-4d4a-b23c-2b7d0f8b0001</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>YourOrg</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="AI Summarizer" />
+  <Description DefaultValue="Outlook Add-in: summarize current mail with local AI. No server persistence." />
+  <IconUrl DefaultValue="https://localhost:3000/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://localhost:3000/icon-80.png" />
+  <SupportUrl DefaultValue="https://localhost:3000/support" />
+
+  <Hosts>
+    <Host Name="Mailbox" />
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.5">
+      <Set Name="Mailbox" />
+    </Sets>
+  </Requirements>
+
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+      </DesktopSettings>
+      <TabletSettings>
+        <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+      </TabletSettings>
+      <PhoneSettings>
+        <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+      </PhoneSettings>
+    </Form>
+  </FormSettings>
+
+  <Permissions>ReadItem</Permissions>
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
+  </Rule>
+
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
+</OfficeApp>

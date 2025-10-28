@@ -1,0 +1,1 @@
+const r="首页",e="充值中心",t="个人中心",n="通用设置",o="MCP服务设置",c="购买记录",s="算力明细",a="智能体",g="对话",h={home:"首页",rechargeCenter:e,profile:t,general:n,mcpServerSetting:o,buyRecord:c,powerDetail:s,agent:"智能体",chat:"对话"};export{a as agent,c as buyRecord,g as chat,h as default,n as general,r as home,o as mcpServerSetting,s as powerDetail,t as profile,e as rechargeCenter};

@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./BwlKNVDb.js","./B416K5Vb.js","./entry.CEiHk8uz.css","./nlmpMNNb.js","./BYlUqmjY.js","./R1mjs-RE.js","./DlAUqK2U.js","./web-designer.C-fUA38f.css"])))=>i.map(i=>d[i]);
+import{e as o,I as t,r as a,s as i,o as _,l as e,Z as c,$ as d}from"#entry";const f=o({__name:"web",setup(u){const s=c(()=>d(()=>import("./BwlKNVDb.js"),__vite__mapDeps([0,1,2,3,4,5,6,7]),import.meta.url)),{query:n}=t(),r=a(n.id);return(m,p)=>(_(),i(e(s),{"design-id":e(r),terminal:"web"},null,8,["design-id"]))}});export{f as default};

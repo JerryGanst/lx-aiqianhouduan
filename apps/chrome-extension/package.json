@@ -1,0 +1,21 @@
+{
+    "name": "chrome-extension",
+    "private": true,
+    "version": "0.0.1",
+    "type": "module",
+    "scripts": {
+        "dev": "vite --mode development",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "vue": "^3.5.12"
+    },
+    "devDependencies": {
+        "@crxjs/vite-plugin": "^2.1.0",
+        "@types/chrome": "^0.0.275",
+        "@vitejs/plugin-vue": "^5.1.4",
+        "typescript": "^5.8.2",
+        "vite": "^5.4.11"
+    }
+}

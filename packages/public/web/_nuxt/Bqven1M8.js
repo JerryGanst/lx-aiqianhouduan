@@ -1,0 +1,1 @@
+const e="Home",t="Top-up",n="Profile",o="General",c="MCP Settings",r="Orders",s="Usage",a="Agent",g="Chat",l={home:e,rechargeCenter:t,profile:n,general:o,mcpServerSetting:c,buyRecord:r,powerDetail:s,agent:a,chat:g};export{a as agent,r as buyRecord,g as chat,l as default,o as general,e as home,c as mcpServerSetting,s as powerDetail,n as profile,t as rechargeCenter};

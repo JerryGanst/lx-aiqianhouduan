@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="x-ua-compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Summarizer Task Pane</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; margin: 0; padding: 16px; }
+    .btn { padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; cursor: pointer; }
+    .row { margin-top: 12px; }
+    #result { white-space: pre-wrap; background: #f7f7f9; border: 1px solid #eee; padding: 12px; border-radius: 8px; min-height: 120px; }
+  </style>
+</head>
+<body>
+  <h3>AI 摘要（Outlook Add-in）</h3>
+  <div class="row">
+    <button id="btn-summary" class="btn">对当前邮件生成摘要</button>
+    <button id="btn-actions" class="btn">提取行动项</button>
+  </div>
+  <div id="meta" class="row"></div>
+  <div id="result" class="row">结果将显示在这里…</div>
+  <script type="module" src="./taskpane.js"></script>
+</body>
+</html>

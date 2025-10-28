@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./VHzyrYAS.js","./B416K5Vb.js","./entry.CEiHk8uz.css","./BOz9ipah.js","./D0zjpoyH.js"])))=>i.map(i=>d[i]);
+import{e as o,j as n,I as r,aV as c,s as l,o as d,l as e,Z as i,$ as _}from"#entry";const D=o({__name:"create",setup(u){const t=i(()=>_(()=>import("./VHzyrYAS.js"),__vite__mapDeps([0,1,2,3,4]),import.meta.url)),a=n(()=>r().params.id),s=c("datasets");return(p,m)=>(d(),l(e(t),{class:"h-full w-full",id:e(a),datasetsDetail:e(s)},null,8,["id","datasetsDetail"]))}});export{D as default};

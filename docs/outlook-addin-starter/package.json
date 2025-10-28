@@ -1,0 +1,15 @@
+{
+  "name": "outlook-addin-ai-summarizer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "build": "echo \"Static files served from public/; no build step required.\""
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "selfsigned": "^2.4.1",
+    "serve-static": "^1.15.0"
+  }
+}

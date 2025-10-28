@@ -1,0 +1,1 @@
+import{cx as t,cw as n,cz as i}from"#entry";function s(e){return t("/plugin/dev-list",e)}function o(e){return t(`/plugin/${e}`)}function r(e){return i(`/plugin/uninstall/${e}`)}function l(e){return n("/plugin",e)}function a(e){return n("/plugin/developer-secret",e)}function p(){return t("/plugin/developer-secret")}export{p as a,a as b,l as c,o as d,s as e,r as f};

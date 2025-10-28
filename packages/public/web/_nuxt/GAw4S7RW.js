@@ -1,0 +1,1 @@
+import{e as s,s as t,o as l,l as e,f as i}from"#entry";import{k as r}from"./pzsWOboI.js";const p=s({__name:"full-screen-button",setup(a){const{toggle:n,isFullscreen:o}=r();return(u,m)=>{const c=i;return l(),t(c,{variant:"ghost",color:"neutral",size:"md",icon:e(o)?"i-lucide-minimize":"i-lucide-maximize",onClick:e(n)},null,8,["icon","onClick"])}}});export{p as default};

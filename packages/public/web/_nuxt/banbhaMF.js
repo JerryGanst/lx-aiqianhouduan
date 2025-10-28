@@ -1,0 +1,1 @@
+import{cx as s,cw as n,cA as o}from"#entry";function i(){return s("/system-payconfig")}function c(a){return s(`/system-payconfig/${a}`)}function f(a,t){return o(`/system-payconfig/${a}`,{isEnable:t})}function y(a){return n("/system-payconfig",a)}export{c as a,y as b,i as c,f as d};

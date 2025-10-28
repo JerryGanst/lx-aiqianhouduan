@@ -87,3 +87,32 @@
   | `MAIL_ASSISTANT_API_BEARER` | （可选）注入 `Authorization: Bearer ...` | 空 |
 
   任务窗格仍向 `/summarize/text` 发请求，Express 服务会转发到上述 URL。若后端暂不可用，会自动回落到本地假摘要，便于离线演示。
+
+## Office SSO 配置流程
+
+1. **注册 Azure AD 应用（单租户）**
+   - 记录 `应用程序 (client) ID` 与 `目录 (tenant) ID`。
+   - 在 *API 权限* 中添加 `Microsoft Graph -> 委托权限 -> Mail.Read`，并管理员同意。
+   - 创建客户端密码（供后端 OBO 使用），记下 `client secret`。
+
+2. **更新 Outlook 加载项清单**
+   - 打开 `docs/outlook-addin-starter/manifest.xml`，将 `<WebApplicationInfo>` 中的 `{{AAD_CLIENT_ID}}` 替换为实际的 clientId。
+   - 重新侧载 manifest，确保 Outlook 识别最新配置。
+
+3. **任务窗格获取访问令牌**
+   - `public/taskpane.js` 已调用 `OfficeRuntime.auth.getAccessToken({ allowSignInPrompt: true, forMSGraphAccess: true })`，默认返回 Graph 令牌；失败时自动降级为无 token 模式。
+   - 元信息区会显示 `auth=SSO` 或 `auth=Fallback`，便于排查。
+
+4. **后端环境变量（OBO / Graph 调用）**
+   - 新增（示例）：
+     ```bash
+     AAD_TENANT_ID=<目录ID>
+     AAD_CLIENT_ID=<应用ID>
+     AAD_CLIENT_SECRET=<客户端密码>
+     ```
+   - 当前实现会优先使用 `accessToken` 调用 Graph；如需完整 OBO，可在邮件服务中加入 token 验证与缓存。
+
+5. **常见问题**
+   - 首次调用若未登录，会弹出 Microsoft 登录窗；之后同一会话复用。
+   - 若返回 `AADSTS500011`，确认 manifest 中的 clientId 与 Azure 应用一致。
+   - 若 Graph 返回 `401/403`，检查 Mail.Read 权限是否管理员同意，以及 token 是否在 5 分钟有效期内。

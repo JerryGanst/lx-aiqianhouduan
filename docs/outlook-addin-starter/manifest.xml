@@ -40,5 +40,13 @@
     <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
   </Rule>
 
+  <WebApplicationInfo>
+    <Id>{{AAD_CLIENT_ID}}</Id>
+    <Resource>api://{{AAD_CLIENT_ID}}</Resource>
+    <Scopes>
+      <Scope>Mail.Read</Scope>
+    </Scopes>
+  </WebApplicationInfo>
+
   <DisableEntityHighlighting>false</DisableEntityHighlighting>
 </OfficeApp>

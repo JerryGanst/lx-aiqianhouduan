@@ -96,18 +96,19 @@
    - 创建客户端密码（供后端 OBO 使用），记下 `client secret`。
 
 2. **更新 Outlook 加载项清单**
-   - 打开 `docs/outlook-addin-starter/manifest.xml`，将 `<WebApplicationInfo>` 中的 `{{AAD_CLIENT_ID}}` 替换为实际的 clientId。
-   - 重新侧载 manifest，确保 Outlook 识别最新配置。
+   - `docs/outlook-addin-starter/manifest.xml` 已写入当前应用的 `<WebApplicationInfo>`：  
+     `Id = d3c9dc21-c40c-4b40-b597-1613adfcb807`，`Resource = api://d3c9dc21-c40c-4b40-b597-1613adfcb807`。
+   - 若后续生成新的应用 ID，请同步替换并重新侧载 manifest。
 
 3. **任务窗格获取访问令牌**
    - `public/taskpane.js` 已调用 `OfficeRuntime.auth.getAccessToken({ allowSignInPrompt: true, forMSGraphAccess: true })`，默认返回 Graph 令牌；失败时自动降级为无 token 模式。
    - 元信息区会显示 `auth=SSO` 或 `auth=Fallback`，便于排查。
 
 4. **后端环境变量（OBO / Graph 调用）**
-   - 新增（示例）：
+   - 新增（示例，当前值仅供开发环境使用）：
      ```bash
-     AAD_TENANT_ID=<目录ID>
-     AAD_CLIENT_ID=<应用ID>
+     AAD_TENANT_ID=72ffe2d0-7dbf-4b46-82cb-a1db2c62de16
+     AAD_CLIENT_ID=d3c9dc21-c40c-4b40-b597-1613adfcb807
      AAD_CLIENT_SECRET=<客户端密码>
      ```
    - 当前实现会优先使用 `accessToken` 调用 Graph；如需完整 OBO，可在邮件服务中加入 token 验证与缓存。

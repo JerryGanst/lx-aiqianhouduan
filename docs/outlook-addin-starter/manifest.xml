@@ -41,8 +41,8 @@
   </Rule>
 
   <WebApplicationInfo>
-    <Id>{{AAD_CLIENT_ID}}</Id>
-    <Resource>api://{{AAD_CLIENT_ID}}</Resource>
+    <Id>d3c9dc21-c40c-4b40-b597-1613adfcb807</Id>
+    <Resource>api://d3c9dc21-c40c-4b40-b597-1613adfcb807</Resource>
     <Scopes>
       <Scope>Mail.Read</Scope>
     </Scopes>

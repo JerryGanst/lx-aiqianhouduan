@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/mailappversionoverrides"
            xsi:type="MailApp">
   <Id>c3f2d2b6-1b0d-4d4a-b23c-2b7d0f8b0001</Id>
   <Version>1.0.0.0</Version>
@@ -42,13 +44,73 @@
     <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
   </Rule>
 
-  <WebApplicationInfo>
-    <Id>d3c9dc21-c40c-4b40-b597-1613adfcb807</Id>
-    <Resource>api://d3c9dc21-c40c-4b40-b597-1613adfcb807</Resource>
-    <Scopes>
-      <Scope>Mail.Read</Scope>
-    </Scopes>
-  </WebApplicationInfo>
-
   <DisableEntityHighlighting>false</DisableEntityHighlighting>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_1">
+    <Requirements>
+      <bt:Sets DefaultMinVersion="1.5">
+        <bt:Set Name="Mailbox" />
+      </bt:Sets>
+    </Requirements>
+    <Hosts>
+      <Host xsi:type="MailHost">
+        <DesktopFormFactor>
+          <FunctionFile resid="TaskPane.Url" />
+          <ExtensionPoint xsi:type="MessageReadCommandSurface">
+            <OfficeTab id="TabDefault">
+              <Group id="AIAddin.Group">
+                <Label resid="AIAddin.Group.Label" />
+                <Icon>
+                  <bt:Image size="16" resid="AIAddin.Icon16" />
+                  <bt:Image size="32" resid="AIAddin.Icon32" />
+                  <bt:Image size="80" resid="AIAddin.Icon80" />
+                </Icon>
+                <Control xsi:type="Button" id="AIAddin.OpenPane">
+                  <Label resid="AIAddin.Button.Label" />
+                  <Supertip>
+                    <Title resid="AIAddin.Button.Label" />
+                    <Description resid="AIAddin.Button.Tooltip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="AIAddin.Icon16" />
+                    <bt:Image size="32" resid="AIAddin.Icon32" />
+                    <bt:Image size="80" resid="AIAddin.Icon80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="TaskPane.Url" />
+                    <SupportsPinning>true</SupportsPinning>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+          <WebApplicationInfo>
+            <Id>d3c9dc21-c40c-4b40-b597-1613adfcb807</Id>
+            <Resource>api://d3c9dc21-c40c-4b40-b597-1613adfcb807</Resource>
+            <Scopes>
+              <Scope>Mail.Read</Scope>
+            </Scopes>
+          </WebApplicationInfo>
+          <RequestedHeight>320</RequestedHeight>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="AIAddin.Icon16" DefaultValue="https://localhost:3000/icon-32.png" />
+        <bt:Image id="AIAddin.Icon32" DefaultValue="https://localhost:3000/icon-32.png" />
+        <bt:Image id="AIAddin.Icon80" DefaultValue="https://localhost:3000/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="TaskPane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="AIAddin.Group.Label" DefaultValue="AI 助理" />
+        <bt:String id="AIAddin.Button.Label" DefaultValue="打开摘要" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="AIAddin.Button.Tooltip" DefaultValue="调用 Fastbuild AI 生成当前邮件摘要与行动项。" />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
 </OfficeApp>

@@ -51,7 +51,7 @@ export class AppModule {
                 DatabaseModule,
                 RedisModule,
                 CacheModule,
-                WebModule,
+                WebModule.register(),
                 ConsoleModule,
                 ChannelModule,
                 BaseModule,

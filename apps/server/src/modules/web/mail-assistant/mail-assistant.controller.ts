@@ -1,5 +1,6 @@
 import { BaseController } from "@common/base/controllers/base.controller";
 import { WebController } from "@common/decorators/controller.decorator";
+import { Public } from "@common/decorators/public.decorator";
 import { HttpExceptionFactory } from "@common/exceptions/http-exception.factory";
 import { Body, Post } from "@nestjs/common";
 
@@ -12,6 +13,7 @@ export class MailAssistantController extends BaseController {
         super();
     }
 
+    @Public()
     @Post("summary")
     async summarizeMailbox(@Body() dto: MailSummaryRequestDto) {
         const hasToken = dto.accessToken && dto.accessToken.trim().length > 0;

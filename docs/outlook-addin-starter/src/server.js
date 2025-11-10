@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const MAIL_ASSISTANT_API_URL =
-  process.env.MAIL_ASSISTANT_API_URL || "https://localhost:4090/api/mail-assistant/summary";
+  process.env.MAIL_ASSISTANT_API_URL || "http://localhost:4090/api/mail-assistant/summary";
 const MAIL_ASSISTANT_API_KEY = process.env.MAIL_ASSISTANT_API_KEY;
 const MAIL_ASSISTANT_API_BEARER = process.env.MAIL_ASSISTANT_API_BEARER;
 
@@ -31,9 +31,15 @@ app.use(serveStatic(path.join(__dirname, "../public"), { index: ["taskpane.html"
 // Simple placeholder AI endpoint for local testing (echo summary)
 app.use(express.json({ limit: "2mb" }));
 app.post("/summarize/text", async (req, res) => {
-  const { subject = "", text = "", mode = "thread-summary", accessToken = "", modelId } =
-    req.body || {};
+  const {
+    subject = "",
+    text = "",
+    mode = "thread-summary",
+    accessToken = "",
+    modelId,
+  } = req.body || {};
   const startedAt = Date.now();
+  const resolvedModelId = modelId || process.env.MAIL_ASSISTANT_MODEL_ID;
 
   try {
     const response = await fetch(MAIL_ASSISTANT_API_URL, {
@@ -47,7 +53,7 @@ app.post("/summarize/text", async (req, res) => {
         subject,
         text,
         mode,
-        modelId,
+        modelId: resolvedModelId,
         accessToken,
       }),
     });
@@ -68,6 +74,7 @@ app.post("/summarize/text", async (req, res) => {
       latencyMs: latency,
       latency_ms: latency,
       model: data.model || "mail-assistant",
+      modelId: resolvedModelId,
     });
   } catch (error) {
     const preview = text.slice(0, 400).replace(/\s+/g, " ").trim();
@@ -78,6 +85,7 @@ app.post("/summarize/text", async (req, res) => {
       result: fallback,
       latency_ms: Date.now() - startedAt,
       model: "local-fallback",
+      modelId: resolvedModelId,
     });
   }
 });

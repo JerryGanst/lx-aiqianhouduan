@@ -8,8 +8,8 @@
     "build": "echo \"Static files served from public/; no build step required.\""
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.21.2",
     "selfsigned": "^2.4.1",
-    "serve-static": "^1.15.0"
+    "serve-static": "^1.16.2"
   }
 }

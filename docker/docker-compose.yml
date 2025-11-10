@@ -79,6 +79,8 @@ services:
             SERVER_PORT: ${SERVER_PORT:-4090}
             QUICK_START_MODE: ${QUICK_START_MODE:-false}
             NPM_REGISTRY_URL: ${NPM_REGISTRY_URL:-}
+            # Database config (ensure TypeORM driver is defined inside container)
+            DB_TYPE: ${DB_TYPE:-postgres}
             DB_USERNAME: ${DB_USERNAME:-postgres}
             DB_PASSWORD: ${DB_PASSWORD:-postgres}
             DB_DATABASE: ${DB_DATABASE:-fastbuildai}

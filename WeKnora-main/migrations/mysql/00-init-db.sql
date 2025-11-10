@@ -51,6 +51,7 @@ CREATE TABLE knowledge_bases (
     vlm_model_id VARCHAR(64) NOT NULL,
     cos_config JSON NOT NULL,
     vlm_config JSON NOT NULL,
+    extract_config JSON NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL DEFAULT NULL
@@ -80,7 +81,7 @@ CREATE TABLE knowledges (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL DEFAULT NULL,
     processed_at TIMESTAMP,
-    error_message TEXT,
+    error_message TEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE INDEX idx_knowledges_tenant_id ON knowledges(tenant_id, knowledge_base_id);
